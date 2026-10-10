@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Archaea Quest: Interactive Labyrinth Learning Game</title>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<!-- File Game Lo -->
+<script src="questions.js"></script>
+
+
+<style>
+  :root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  body{background:radial-gradient(circle at 20% 20%,#0b2a3a 0,#050b18 55%,#02060f 100%);color:#e6fffb;font-family:system-ui,sans-serif;min-height:100vh}
+  .glass{background:rgba(8,28,48,.68);border:1px solid rgba(45,212,191,.35);backdrop-filter:blur(6px);border-radius:16px;box-shadow:0 0 24px rgba(20,184,166,.12)}
+  .neon{color:#5eead4;text-shadow:0 0 14px #14b8a6}
+  .node{position:absolute;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:9999px;font-weight:800;background:#082032;border:3px solid var(--c,#5eead4);color:#fff;transition:transform .15s}
+  .node.open{animation:glow 2s infinite;cursor:pointer}.node.open:hover,.node.thrown:hover{transform:translate(-50%,-50%) scale(1.15)}
+  .node.thrown{border-color:#fb923c;background:#7c2d12;animation:pulse 1s infinite;cursor:pointer}
+  .node.fog{opacity:.3;border-style:dashed;filter:blur(1px)}.node.done{color:#000}.node.lost{opacity:.5;border-color:#52525b}
+  @keyframes glow{50%{box-shadow:0 0 24px 8px var(--c)}}
+  @keyframes pulse{50%{box-shadow:0 0 24px 10px #fb923c}}
+  @keyframes pop{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.3)}100%{transform:scale(1);opacity:1}}.pop{animation:pop .6s both}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}.conf{position:fixed;top:-20px;font-size:24px;animation:fall linear forwards;pointer-events:none;z-index:60}
+  input{background:#0a2236;border:1px solid #2dd4bf66;border-radius:10px;padding:8px 12px;color:#fff;width:100%}
+</style>
+</head>
+
+<!-- Firebase App & Database via CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<body>
+<div id="bg" class="fixed inset-0" style="z-index:0"></div>
+<div id="app" class="relative max-w-6xl mx-auto p-3" style="z-index:1"></div>
+<script>
+/* =====================================================================
+ * UI TEXTS (interface only, not subject-specific)
+ * ===================================================================== */
+const UI = {
+  en: { loginT:"Teacher / Moderator", loginS:"Student", pin:"Teacher PIN", wrongPin:"Wrong PIN", yourName:"Your name", enter:"Enter", loginHint:"Log in to play",
+    lobby:"EXPEDITION PREP", members:"Members", ready:"READY", waiting:"WAITING", startGame:"START GAME!", rename:"Rename group", save:"Save", imReady:"We're ready!", notReady:"Not ready",
+    joinGroup:"Tap a group to join", yourGroup:"Your group", unassigned:"Students waiting to join", settings:"GAME SETTINGS", topic:"Topic", mode:"Game mode", modeV:"Quiz + Stealing + Catch-up", maze:"Maze size", mazeV:"Small → Wide → Bomb", needGroup:"At least one group must have members",
+    demo:"Demo mode: Firebase is not configured, so sync works only between tabs of this browser (see README).", waitT:"Waiting for the teacher to start...", yourTurn:"YOUR TURN! Tell your representative's choice to the teacher", watching:"Watching",
+    stage:"Stage", turn:"Turn", priority:"Priority", pick:"Representative: pick a glowing point", points:"pts", steal:"Steal!", whoSteal:"Which group steals this question?", quiz:"ARCHAEA QUIZ - POINT",
+    correct:"Correct!", wrong:"Wrong!", cont:"Continue", skip:"Skip turn", stageEnd:"Stage complete", next:"Next stage", scoreboard:"GROUP STANDINGS", active:"Active", catchup:"Free choice (Catch-Up)",
+    winner:"Winner", tie:"It's a tie!", again:"Back to lobby", group:"Group", thrown:"Thrown", timeUp:"Time's up!", final:"Final Results", endNow:"End stage", toLobby:"Lobby", clearStu:"Remove all students", fogHint:"Fog expands next stage" },
+  id: { loginT:"Guru / Moderator", loginS:"Siswa", pin:"PIN Guru", wrongPin:"PIN salah", yourName:"Namamu", enter:"Masuk", loginHint:"Masuk untuk bermain",
+    lobby:"PERSIAPAN PENJELAJAHAN", members:"Anggota", ready:"SIAP", waiting:"MENUNGGU", startGame:"MULAI GAME!", rename:"Ganti nama kelompok", save:"Simpan", imReady:"Kami siap!", notReady:"Belum siap",
+    joinGroup:"Ketuk kelompok untuk bergabung", yourGroup:"Kelompokmu", unassigned:"Siswa menunggu bergabung", settings:"PENGATURAN PERMAINAN", topic:"Topik", mode:"Mode permainan", modeV:"Kuis + Curi Soal + Catch-up", maze:"Ukuran labirin", mazeV:"Kecil → Luas → Bom", needGroup:"Minimal satu kelompok harus punya anggota",
+    demo:"Mode demo: Firebase belum diatur, sinkronisasi hanya antar tab di browser ini (lihat README).", waitT:"Menunggu guru memulai permainan...", yourTurn:"GILIRANMU! Sampaikan pilihan wakil kelompok ke guru", watching:"Menonton",
+    stage:"Tahap", turn:"Giliran", priority:"Prioritas", pick:"Wakil kelompok: pilih titik yang menyala", points:"poin", steal:"Curi!", whoSteal:"Kelompok mana yang mencuri soal ini?", quiz:"KUIS ARCHAEA - TITIK",
+    correct:"Benar!", wrong:"Salah!", cont:"Lanjut", skip:"Lewati giliran", stageEnd:"Tahap selesai", next:"Tahap berikutnya", scoreboard:"KLASEMEN KELOMPOK", active:"Aktif", catchup:"Bebas Pilih (Catch-Up)",
+    winner:"Pemenang", tie:"Seri!", again:"Kembali ke lobi", group:"Kelompok", thrown:"Dilempar", timeUp:"Waktu habis!", final:"Hasil Akhir", endNow:"Akhiri tahap", toLobby:"Lobi", clearStu:"Hapus semua siswa", fogHint:"Kabut meluas di tahap berikutnya" }
+};
+
+/* =====================================================================
+ * GAME ENGINE (subject-independent: do not edit when changing topics)
+ * ===================================================================== */
+const Q = questionBank, $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+let lang = "id", role = null, me = null, S = null, G = null, X = null, P = [], GN = {}, timer = null;
+const t = k => UI[lang][k], tr = o => o[lang], qById = id => Q.questions.find(q => q.id === id);
+const gName = g => (GN[g] && GN[g].name) || `${t("group")} ${g + 1}`;
+const pts = n => Q.difficulties[Q.nodes[n.i].d].points * (n.bomb ? 2 : 1);
+
+/* ---------- Shared store: claude.ai `db` (multi-device) with same-browser fallback ---------- */
+const mem = {}, subs = [], fire = () => subs.forEach(f => f()), bc = "BroadcastChannel" in window ? new BroadcastChannel("aq") : null;
+if (bc) bc.onmessage = e => { mem[e.data.path] = e.data.data; fire(); };
+const Store = {
+  fb: null,
+  async init() {
+    try { if (typeof firebase !== "undefined" && firebaseConfig && firebaseConfig.databaseURL) { firebase.initializeApp(firebaseConfig); this.fb = firebase.database(); } }
+    catch (e) { console.warn("Firebase init failed", e); this.fb = null; }
+  },
+  put(path, data) { if (this.fb) return this.fb.ref(path).set(data).catch(console.warn); mem[path] = data; bc && bc.postMessage({ path, data }); fire(); },
+  doc(path, cb) { if (this.fb) return this.fb.ref(path).on("value", s => cb(s.val())); subs.push(() => cb(mem[path] || null)); fire(); },
+  col(name, cb) {
+    if (this.fb) return this.fb.ref(name).on("value", s => { const v = s.val() || {}; cb(Object.keys(v).map(k => ({ id: k, ...v[k] }))); });
+    subs.push(() => cb(Object.keys(mem).filter(k => k.startsWith(name + "/") && mem[k]).map(k => ({ id: k.split("/")[1], ...mem[k] })))); fire();
+  }
+};
+const typing = () => document.activeElement && document.activeElement.tagName === "INPUT";
+function listen() {
+  Store.col("players", l => { P = l; if (!typing() && (role === "teacher" ? S.screen === "lobby" : !G || G.screen === "lobby")) render(); });
+  Store.col("groups", l => { GN = {}; l.forEach(d => GN[+d.id.slice(1)] = d); if (!typing() && (role === "teacher" ? S.screen === "lobby" : !G || G.screen === "lobby")) render(); });
+  Store.doc("game/state", d => { if (role !== "student") return; G = d && d.json ? JSON.parse(d.json) : null; if (G && G.screen === "play") startTick(); if (!typing()) render(); });
+}
+const members = g => P.filter(p => p.g === g);
+
+/* ---------- Teacher engine ---------- */
+function publish() {
+  const { screen, stage, scores, order, turn, nodes, modal, endAt, active } = S;
+  Store.put("game/state", { json: JSON.stringify({ screen, stage, scores, order, turn, nodes, modal, endAt, active }), v: Date.now() });
+}
+function toLobby() {
+  clearInterval(timer); S = { screen: "lobby" };
+  Store.put("game/state", { json: JSON.stringify({ screen: "lobby" }), v: Date.now() });
+  for (let g = 0; g < Q.groups; g++) Store.put(`groups/g${g}`, { name: (GN[g] && GN[g].name) || "", ready: false });
+  render();
+}
+function clearStudents() { P.forEach(p => Store.put(`players/${p.id}`, null)); }
+function startGame() {
+  const active = [...Array(Q.groups).keys()].filter(g => members(g).length);
+  if (!active.length) return;
+  S = { screen: "play", stage: 0, scores: Array(Q.groups).fill(0), used: new Set(), active };
+  startStage();
+}
+function startStage() {
+  const st = Q.stages[S.stage];
+  S.nodes = Q.nodes.slice(0, st.reveal).map((n, i) => ({ i, st: "open", bomb: !!st.bomb && Math.random() < 0.3, qid: null, ord: null, from: null, by: null }));
+  S.order = [...S.active].sort((a, b) => S.scores[a] - S.scores[b] || a - b);   // lowest score = priority / catch-up
+  S.turn = 0; S.modal = null; S.pendingEnd = false; S.screen = "play";
+  S.endAt = Date.now() + Q.timerSeconds * 1000;
+  startTick(); render();
+}
+function startTick() { clearInterval(timer); timer = setInterval(tick, 250); }
+function tick() {
+  if (!X || X.screen !== "play") return;
+  const rem = Math.max(0, Math.ceil((X.endAt - Date.now()) / 1000));
+  const bar = $("#tbar"), txt = $("#ttxt");
+  if (bar) { bar.style.width = (rem / Q.timerSeconds * 100) + "%"; bar.style.background = rem < 60 ? "#ef4444" : rem < 120 ? "#f59e0b" : "#14b8a6"; }
+  if (txt) txt.textContent = `${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`;
+  if (rem <= 0 && role === "teacher") { S.modal ? (S.pendingEnd = true) : endStage(); }
+}
+function endStage() { clearInterval(timer); S.screen = S.stage >= Q.stages.length - 1 ? "final" : "stageEnd"; S.modal = null; render(); }
+function assignQ(n) {
+  if (n.qid) return;
+  const pool = Q.questions.filter(q => q.d === Q.nodes[n.i].d);
+  let fresh = pool.filter(q => !S.used.has(q.id));
+  if (!fresh.length) { pool.forEach(q => S.used.delete(q.id)); fresh = pool; }
+  const q = fresh[Math.floor(Math.random() * fresh.length)];
+  S.used.add(q.id); n.qid = q.id; n.ord = Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3];
+}
+function pick(i) {
+  const n = S.nodes[i]; if (S.modal || S.screen !== "play") return;
+  if (n.st === "open") { assignQ(n); S.modal = { i, g: S.order[S.turn], phase: "q", steal: false }; }
+  else if (n.st === "thrown") { assignQ(n); S.modal = { i, g: null, phase: "who", steal: true }; }
+  else return;
+  render();
+}
+function chooseStealer(g) { S.modal.g = g; S.modal.phase = "q"; render(); }
+function answer(k) {
+  const m = S.modal, n = S.nodes[m.i], p = pts(n), ok = n.ord[k] === qById(n.qid).a;
+  let delta = 0;
+  if (ok) { delta = p; n.st = "done"; n.by = m.g; }
+  else { if (n.bomb) delta = -Math.floor(p / 2); n.st = m.steal ? "lost" : "thrown"; if (!m.steal) n.from = m.g; }
+  S.scores[m.g] = Math.max(0, S.scores[m.g] + delta);
+  Object.assign(m, { phase: "res", ok, delta, k }); render();
+}
+function closeModal() {
+  if (!S.modal.steal) S.turn = (S.turn + 1) % S.order.length;
+  S.modal = null;
+  if (S.pendingEnd || !S.nodes.some(n => n.st === "open" || n.st === "thrown")) endStage(); else render();
+}
+function skipTurn() { S.turn = (S.turn + 1) % S.order.length; render(); }
+function nextStage() { S.stage++; startStage(); }
+
+/* ---------- Student / login actions ---------- */
+function setLang(l) { lang = l; document.documentElement.lang = l; render(); }
+function teacherLogin() { if ($("#pin").value === Q.teacherPin) { role = "teacher"; toLobby(); } else $("#err").textContent = t("wrongPin"); }
+function studentLogin() {
+  const name = $("#sname").value.trim(); if (!name) return;
+  let pid = null; try { pid = localStorage.getItem("aq_pid"); } catch (e) {}
+  if (!pid) { pid = "p" + Math.random().toString(36).slice(2, 9); try { localStorage.setItem("aq_pid", pid); } catch (e) {} }
+  me = { pid, name }; role = "student"; Store.put(`players/${pid}`, { name, g: -1 }); render();
+}
+const myG = () => { const p = P.find(p => p.id === me.pid); return p ? p.g : -1; };
+function joinGroup(g) { Store.put(`players/${me.pid}`, { name: me.name, g }); }
+function saveGroup(g, ready) {
+  const name = $("#gname") ? $("#gname").value.trim() : (GN[g] && GN[g].name) || "";
+  Store.put(`groups/g${g}`, { name, ready: ready === undefined ? !!(GN[g] && GN[g].ready) : ready });
+}
+
+/* ---------- Rendering ---------- */
+function mazeBg() {   // random maze drawn behind everything (recursive backtracker)
+  const W = 36, H = 20, vis = [...Array(H)].map(() => Array(W).fill(0)), R = [...Array(H)].map(() => Array(W).fill(1)), B = [...Array(H)].map(() => Array(W).fill(1));
+  const st = [[0, 0]]; vis[0][0] = 1;
+  while (st.length) {
+    const [x, y] = st[st.length - 1];
+    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy, dx, dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < W && b < H && !vis[b][a]);
+    if (!nb.length) { st.pop(); continue; }
+    const [a, b, dx, dy] = nb[Math.random() * nb.length | 0]; vis[b][a] = 1;
+    if (dx === 1) R[y][x] = 0; if (dx === -1) R[b][a] = 0; if (dy === 1) B[y][x] = 0; if (dy === -1) B[b][a] = 0; st.push([a, b]);
+  }
+  let d = ""; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (R[y][x]) d += `M${x + 1} ${y}v1`; if (B[y][x]) d += `M${x} ${y + 1}h1`; }
+  $("#bg").innerHTML = `<svg class="w-full h-full" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice"><path d="${d}" stroke="#2dd4bf" stroke-opacity=".17" stroke-width=".07" fill="none"/></svg>`;
+}
+const langBtn = () => `<div class="flex gap-1 text-xs">${["en", "id"].map(l => `<button onclick="setLang('${l}')" class="px-2 py-1 rounded ${lang === l ? "bg-teal-400 text-black font-bold" : "bg-slate-700"}">${l === "en" ? "English" : "Bahasa Indonesia"}</button>`).join("")}</div>`;
+const title = () => `<div class="text-center"><div class="text-2xl md:text-3xl font-black neon">🦠 MICROBE EVOLUTION: ${esc(tr(Q.topic.title)).toUpperCase()}</div><div class="text-sm text-teal-200/80">${esc(tr(Q.topic.subtitle))}</div></div>`;
+const demoBanner = () => Store.fb ? "" : `<div class="text-center text-xs text-amber-300 my-1">⚠ ${t("demo")}</div>`;
+
+function render() {
+  const app = $("#app"); X = role === "teacher" ? S : G;
+  if (!role) return renderLogin(app);
+  if (role === "student") {
+    if (!G || G.screen === "lobby" || !G.screen) return renderStudentLobby(app);
+    return G.screen === "play" ? renderStudentPlay(app) : renderEnd(app, false);
+  }
+  if (S.screen === "lobby") return renderLobbyT(app);
+  publish();
+  if (S.screen === "play") return renderPlayT(app);
+  renderEnd(app, true);
+}
+function renderLogin(app) {
+  app.innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="py-8">${title()}${demoBanner()}
+  <div class="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto mt-8">
+    <div class="glass p-5"><h3 class="text-xl font-bold mb-3">🎓 ${t("loginT")}</h3><input id="pin" type="password" placeholder="${t("pin")}" onkeydown="if(event.key==='Enter')teacherLogin()"><div id="err" class="text-red-400 text-sm h-5"></div>
+      <button onclick="teacherLogin()" class="w-full mt-1 py-2 rounded-xl bg-teal-400 text-black font-bold">${t("enter")}</button></div>
+    <div class="glass p-5"><h3 class="text-xl font-bold mb-3">🧑‍🎓 ${t("loginS")}</h3><input id="sname" maxlength="20" placeholder="${t("yourName")}" onkeydown="if(event.key==='Enter')studentLogin()"><div class="h-5"></div>
+      <button onclick="studentLogin()" class="w-full mt-1 py-2 rounded-xl bg-amber-400 text-black font-bold">${t("enter")}</button></div></div></div>`;
+}
+function groupCard(g, mine, teacher) {
+  const c = Q.groupColors[g], ms = members(g), rd = GN[g] && GN[g].ready;
+  const click = !teacher ? `onclick="joinGroup(${g})"` : "";
+  return `<div ${click} class="glass p-3 ${!teacher && !mine ? "cursor-pointer hover:scale-[1.02]" : ""}" style="border:2px solid ${c};${mine ? `box-shadow:0 0 22px ${c}` : ""}">
+    <div class="flex items-center gap-2"><span class="text-3xl">${Q.groupIcons[g]}</span><div class="flex-1"><div class="font-extrabold">${esc(gName(g)).toUpperCase()}</div><div class="text-xs text-teal-200/70">${ms.length} ${t("members")}</div></div>
+      <span class="text-xs px-2 py-1 rounded border ${rd ? "border-emerald-400 text-emerald-300" : "border-slate-500 text-slate-400"}">${rd ? t("ready") : t("waiting")}</span></div>
+    <div class="mt-2 text-sm grid grid-cols-2 gap-x-2 min-h-[3rem]">${ms.map(p => `<div class="truncate">👤 ${esc(p.name)}</div>`).join("")}</div></div>`;
+}
+function renderLobbyT(app) {
+  const free = P.filter(p => p.g < 0);
+  app.innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<button onclick="role=null;render()" class="text-xs underline text-slate-400">⎋</button></div>${title()}${demoBanner()}
+  <div class="grid lg:grid-cols-[1fr_300px] gap-4 mt-4"><div><div class="text-center font-bold tracking-widest mb-3">${t("lobby")} (${Q.groups})</div>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${[...Array(Q.groups).keys()].map(g => groupCard(g, false, true)).join("")}</div></div>
+    <div class="glass p-4 space-y-3"><div class="font-bold tracking-wide">${t("settings")}</div>
+      <div><div class="text-xs text-teal-200/70">${t("topic")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${esc(tr(Q.topic.subtitle))}</div></div>
+      <div><div class="text-xs text-teal-200/70">${t("mode")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${t("modeV")}</div></div>
+      <div><div class="text-xs text-teal-200/70">${t("maze")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${t("mazeV")}</div></div>
+      <div><div class="text-xs text-teal-200/70">${t("unassigned")}</div><div class="max-h-28 overflow-auto text-sm">${free.map(p => `<div>👤 ${esc(p.name)}</div>`).join("") || "—"}</div></div>
+      <button onclick="clearStudents()" class="w-full py-1 rounded-lg text-xs border border-slate-500 text-slate-300">${t("clearStu")}</button>
+      <button onclick="startGame()" class="w-full py-3 rounded-xl font-black text-black bg-gradient-to-b from-amber-300 to-amber-500 ${P.some(p => p.g >= 0) ? "" : "opacity-40"}">${t("startGame")}</button>
+      ${P.some(p => p.g >= 0) ? "" : `<div class="text-xs text-amber-300">${t("needGroup")}</div>`}</div></div>`;
+}
+function renderStudentLobby(app) {
+  const g = myG();
+  app.innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-sm">👤 ${esc(me.name)}</span></div>${title()}${demoBanner()}
+  <p class="text-center mt-3 text-sm text-teal-100">${g < 0 ? t("joinGroup") : t("waitT")}</p>
+  ${g >= 0 ? `<div class="glass p-3 mt-3"><div class="text-xs mb-1">${t("rename")}</div><div class="flex gap-2"><input id="gname" maxlength="18" value="${esc((GN[g] && GN[g].name) || "")}" placeholder="${t("group")} ${g + 1}">
+    <button onclick="saveGroup(${g})" class="px-3 rounded-lg bg-teal-400 text-black font-bold">${t("save")}</button></div>
+    <button onclick="saveGroup(${g},${!(GN[g] && GN[g].ready)})" class="w-full mt-2 py-2 rounded-xl font-bold ${GN[g] && GN[g].ready ? "bg-slate-600" : "bg-emerald-400 text-black"}">${GN[g] && GN[g].ready ? t("notReady") : t("imReady")}</button></div>` : ""}
+  <div class="grid gap-3 mt-4">${[...Array(Q.groups).keys()].map(i => groupCard(i, i === g, false)).join("")}</div></div>`;
+}
+function sidebar() {
+  const rk = [...X.active].sort((a, b) => X.scores[b] - X.scores[a]), cur = X.order[X.turn];
+  return `<div class="glass p-3"><div class="text-center font-bold tracking-wide mb-2 text-teal-200">${t("scoreboard")}</div><div class="space-y-2">${rk.map((g, r) => `
+    <div class="rounded-xl p-2 flex items-center gap-2" style="border:2px solid ${Q.groupColors[g]};background:${g === cur ? "rgba(20,184,166,.25)" : "rgba(8,28,48,.6)"}">
+      <div class="text-xl font-black w-6" style="color:${Q.groupColors[g]}">${r + 1}</div><div class="flex-1 min-w-0"><div class="font-bold truncate">${Q.groupIcons[g]} ${esc(gName(g))}</div><div class="text-sm">${X.scores[g]} ${t("points")}</div>
+      ${X.order[0] === g ? `<div class="text-[10px] text-amber-300">⭐ ${t("catchup")}</div>` : ""}</div>${g === cur ? `<span class="text-xs px-2 rounded bg-emerald-500 text-black font-bold">${t("active")}</span>` : ""}</div>`).join("")}</div></div>`;
+}
+function nodeHtml(n, i, T) {
+  const node = X.nodes[i], pos = `left:${n.x}%;top:${n.y}%`;
+  if (!node) return `<div class="node fog flex items-center justify-center" style="${pos}">?</div>`;
+  const dc = Q.difficulties[n.d].color;
+  const label = node.st === "done" ? `✓<span class="block text-[9px] leading-none">${node.by + 1}</span>` : node.st === "lost" ? "✗" : node.st === "thrown" ? "↩" : node.bomb ? "💣" : pts(node);
+  const bg = node.st === "done" ? `background:${Q.groupColors[node.by]};border-color:${Q.groupColors[node.by]};` : "";
+  const click = T && (node.st === "open" || node.st === "thrown") ? `onclick="pick(${i})"` : "";
+  return `<button ${click} class="node ${node.st} flex flex-col items-center justify-center" style="${pos};--c:${dc};${bg}">${label}</button>`;
+}
+function modalBody(T) {
+  const m = X.modal, n = X.nodes[m.i], d = Q.difficulties[Q.nodes[m.i].d];
+  if (m.phase === "who") return `<h3 class="text-lg font-bold mb-3 text-center">🔓 ${t("whoSteal")}</h3>${T ? `<div class="grid grid-cols-2 gap-2">${X.active.filter(g => g !== n.from).map(g => `<button onclick="chooseStealer(${g})" class="py-3 rounded-lg font-bold text-black" style="background:${Q.groupColors[g]}">${esc(gName(g))}</button>`).join("")}</div>` : ""}`;
+  const q = qById(n.qid);
+  return `<div class="flex justify-between items-center mb-2"><span class="px-3 py-1 rounded-full font-bold text-black text-sm" style="background:${Q.groupColors[m.g]}">${esc(gName(m.g))}${m.steal ? " · " + t("steal") : ""}</span>
+    <span style="color:${d.color}" class="font-bold text-sm">${tr(d.label)} · ${pts(n)} ${t("points")}${n.bomb ? " 💣" : ""}</span></div>
+    <h3 class="text-lg md:text-xl font-bold mb-3 text-center">${tr(q.q)}</h3>
+    <div class="space-y-2">${n.ord.map((oi, k) => {
+      let cls = "bg-slate-800/80 border-teal-400/40" + (T && m.phase === "q" ? " hover:bg-teal-900 cursor-pointer" : "");
+      if (m.phase === "res") cls = oi === q.a ? "bg-emerald-700 border-emerald-300" : k === m.k ? "bg-red-700 border-red-300" : "bg-slate-900 opacity-50 border-transparent";
+      return `<div ${T && m.phase === "q" ? `onclick="answer(${k})"` : ""} class="flex items-center gap-3 px-3 py-2 rounded-xl border ${cls}"><b class="w-7 h-7 rounded-md bg-teal-400/20 flex items-center justify-center">${"ABCD"[k]}</b>${q.o[lang][oi]}</div>`;
+    }).join("")}</div>
+    ${m.phase === "res" ? `<div class="text-center mt-4"><div class="pop text-3xl font-black ${m.ok ? "text-emerald-300" : "text-red-400"}">${m.ok ? "✅ " + t("correct") : "❌ " + t("wrong")}</div>
+      <div class="pop text-2xl font-extrabold mt-1">${m.delta > 0 ? "+" : ""}${m.delta} ${t("points")}</div>${!m.ok && !m.steal ? `<div class="text-sm text-amber-300">↩ ${t("thrown")}</div>` : ""}
+      ${T ? `<button onclick="closeModal()" class="mt-3 px-6 py-2 rounded-full bg-teal-400 text-black font-bold">${t("cont")}</button>` : ""}</div>` : ""}`;
+}
+function timerBar() {
+  const st = Q.stages[X.stage];
+  return `<div class="glass px-4 py-2 mt-3"><div class="flex justify-between text-sm font-bold"><span>${tr(st.label)} ${st.bomb ? "💣" : ""}</span><span>⏱ <b id="ttxt"></b></span></div>
+    <div class="h-3 rounded bg-slate-800 overflow-hidden mt-1"><div id="tbar" class="h-full" style="width:100%"></div></div></div>`;
+}
+function renderPlayT(app) {
+  const st = Q.stages[X.stage], cur = X.order[X.turn];
+  app.innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<div class="text-xs flex gap-3"><button onclick="endStage()" class="underline">${t("endNow")}</button><button onclick="toLobby()" class="underline">${t("toLobby")}</button></div></div>${title()}
+  <div class="grid lg:grid-cols-[250px_1fr] gap-3 mt-3">${sidebar()}<div>
+    <div class="text-center text-sm mb-2"><span class="px-3 py-1 rounded-full font-bold text-black" style="background:${Q.groupColors[cur]}">${t("turn")}: ${esc(gName(cur))}</span>
+      <span class="ml-2 text-teal-100">${t("pick")}</span> <button onclick="skipTurn()" class="ml-2 text-xs underline text-slate-400">${t("skip")}</button></div>
+    <div class="relative glass overflow-hidden" style="aspect-ratio:16/9">
+      <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${Q.nodes.slice(0, st.reveal).map(n => n.x + "," + n.y).join(" ")}" fill="none" stroke="#14b8a6" stroke-opacity=".55" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="stroke-width:10px;filter:drop-shadow(0 0 6px #2dd4bf)"/></svg>
+      ${Q.nodes.map((n, i) => nodeHtml(n, i, true)).join("")}
+      ${X.modal ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center p-2"><div class="glass w-full max-w-xl p-4 max-h-full overflow-auto"><div class="text-center text-xs tracking-widest text-teal-200 mb-1">${t("quiz")} ${X.modal.i + 1}</div>${modalBody(true)}</div></div>` : ""}
+    </div>${timerBar()}<p class="text-center text-xs text-slate-400 mt-1">${Q.stages[X.stage + 1] && Q.stages[X.stage + 1].reveal > st.reveal ? "🌫 " + t("fogHint") : ""}</p></div></div>`;
+  tick();
+}
+function renderStudentPlay(app) {
+  const g = myG(), cur = X.order[X.turn], mineTurn = g === cur;
+  app.innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-sm">${g >= 0 ? Q.groupIcons[g] + " " + esc(gName(g)) + " · " + X.scores[g] + " " + t("points") : "👀 " + t("watching")}</span></div>
+  <div class="text-center font-bold py-2 rounded-xl ${mineTurn ? "bg-emerald-500 text-black" : "glass"}">${mineTurn ? t("yourTurn") : t("turn") + ": " + esc(gName(cur))}</div>
+  ${timerBar()}
+  ${X.modal ? `<div class="glass p-4 mt-3"><div class="text-center text-xs tracking-widest text-teal-200 mb-1">${t("quiz")} ${X.modal.i + 1}</div>${modalBody(false)}</div>` : ""}
+  <div class="mt-3">${sidebar()}</div></div>`;
+  tick();
+}
+function renderEnd(app, T) {
+  const final = X.screen === "final", rk = [...X.active].sort((a, b) => X.scores[b] - X.scores[a]), max = X.scores[rk[0]];
+  const win = rk.filter(g => X.scores[g] === max);
+  app.innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="text-center py-6 max-w-md mx-auto">
+    <h2 class="text-3xl font-black neon">${final ? "🏆 " + t("final") : t("stageEnd") + " " + (X.stage + 1)}</h2>
+    ${final ? `<p class="text-2xl mt-3 font-bold pop">${win.length > 1 ? t("tie") + " " : t("winner") + ": "}${win.map(g => esc(gName(g))).join(" & ")} 🎉</p>` : ""}
+    <div class="mt-4 space-y-2"><h3 class="font-bold">${t("scoreboard")}</h3>${rk.map((g, r) => `<div class="flex justify-between px-4 py-2 rounded-lg font-bold text-black" style="background:${Q.groupColors[g]}"><span>${r + 1}. ${Q.groupIcons[g]} ${esc(gName(g))}</span><span>${X.scores[g]}</span></div>`).join("")}</div>
+    ${T ? `<button onclick="${final ? "toLobby()" : "nextStage()"}" class="mt-6 px-8 py-3 rounded-full bg-teal-400 text-black text-lg font-bold">${final ? t("again") : t("next")}</button>` : ""}</div>`;
+  if (final) { clearInterval(timer); confetti(); }
+}
+function confetti() {
+  for (let i = 0; i < 50; i++) {
+    const c = document.createElement("div"); c.className = "conf"; c.textContent = ["🎉", "✨", "🦠", "🏆"][i % 4];
+    c.style.left = Math.random() * 100 + "vw"; c.style.animationDuration = 2 + Math.random() * 3 + "s";
+    document.body.appendChild(c); setTimeout(() => c.remove(), 5500);
+  }
+}
+(async function boot() { mazeBg(); await Store.init(); listen(); render(); })();
+
+</script>
+</body>
+</html>
