@@ -7,322 +7,448 @@
 <script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
-<!-- File Game Lo -->
-<script src="questions.js"></script>
-
-
 <style>
-  :root{color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-  body{background:radial-gradient(circle at 20% 20%,#0b2a3a 0,#050b18 55%,#02060f 100%);color:#e6fffb;font-family:system-ui,sans-serif;min-height:100vh}
-  .glass{background:rgba(8,28,48,.68);border:1px solid rgba(45,212,191,.35);backdrop-filter:blur(6px);border-radius:16px;box-shadow:0 0 24px rgba(20,184,166,.12)}
+  :root{color-scheme:dark}
+  body{background:radial-gradient(circle at 20% 20%,#0b2a3a 0,#050b18 55%,#02060f 100%);color:#e6fffb;font-family:system-ui,sans-serif;min-height:100vh;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+  .glass{background:rgba(8,28,48,.7);border:1px solid rgba(45,212,191,.35);backdrop-filter:blur(6px);border-radius:16px;box-shadow:0 0 24px rgba(20,184,166,.12)}
   .neon{color:#5eead4;text-shadow:0 0 14px #14b8a6}
+  input{background:#0a2236;border:1px solid #2dd4bf66;border-radius:10px;padding:8px 12px;color:#fff;width:100%}
+  /* map nodes */
   .node{position:absolute;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:9999px;font-weight:800;background:#082032;border:3px solid var(--c,#5eead4);color:#fff;transition:transform .15s}
-  .node.open{animation:glow 2s infinite;cursor:pointer}.node.open:hover,.node.thrown:hover{transform:translate(-50%,-50%) scale(1.15)}
-  .node.thrown{border-color:#fb923c;background:#7c2d12;animation:pulse 1s infinite;cursor:pointer}
-  .node.fog{opacity:.3;border-style:dashed;filter:blur(1px)}.node.done{color:#000}.node.lost{opacity:.5;border-color:#52525b}
-  @keyframes glow{50%{box-shadow:0 0 24px 8px var(--c)}}
-  @keyframes pulse{50%{box-shadow:0 0 24px 10px #fb923c}}
+  .sm .node{width:40px;height:40px;font-size:12px}
+  .node.open{animation:glow 2s infinite;cursor:pointer}.node.open:hover{transform:translate(-50%,-50%) scale(1.15)}
+  .node.claimed{animation:pulse 1s infinite}.node.steal{border-color:#fb923c;background:#7c2d12;animation:pulse .8s infinite}
+  .node.thrown{border-color:#fb923c;background:#431407;cursor:pointer}.node.fog{opacity:.3;border-style:dashed;filter:blur(1px)}.node.done{color:#000}.node.lost{opacity:.5;border-color:#52525b}
+  @keyframes glow{50%{box-shadow:0 0 24px 8px var(--c)}}@keyframes pulse{50%{box-shadow:0 0 24px 10px #fb923c}}
   @keyframes pop{0%{transform:scale(.3);opacity:0}60%{transform:scale(1.3)}100%{transform:scale(1);opacity:1}}.pop{animation:pop .6s both}
   @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}.conf{position:fixed;top:-20px;font-size:24px;animation:fall linear forwards;pointer-events:none;z-index:60}
-  input{background:#0a2236;border:1px solid #2dd4bf66;border-radius:10px;padding:8px 12px;color:#fff;width:100%}
+  /* question panel: scan-in loading (pure CSS) */
+  .qwrap{position:relative;overflow:hidden}
+  .qscan{position:absolute;inset:0;z-index:5;background:#02121f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;animation:qs .8s forwards;pointer-events:none}
+  .qscan i{width:34px;height:34px;border:3px solid #14b8a6;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes qs{0%,70%{opacity:1}100%{opacity:0;visibility:hidden}}@keyframes spin{to{transform:rotate(360deg)}}
+  .qopts{animation:qo .85s both}@keyframes qo{0%,99%{pointer-events:none}100%{pointer-events:auto}}
+  /* fullscreen neon loader */
+  #loader{position:fixed;inset:0;z-index:100;background:#02060f;display:flex;align-items:center;justify-content:center;opacity:0;visibility:hidden;transition:opacity .35s,visibility .35s;overflow:hidden}
+  #loader.on{opacity:1;visibility:visible}
+  #loader:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(45,212,191,.06) 0 2px,transparent 2px 5px);animation:scan 4s linear infinite}
+  @keyframes scan{to{background-position:0 100px}}
+  .ldbar{height:6px;width:240px;background:#0b2a3a;border-radius:9px;overflow:hidden;margin:14px auto 0}.ldbar b{display:block;height:100%;width:0;background:linear-gradient(90deg,#14b8a6,#a78bfa,#f472b6);animation:fillbar var(--d,1.2s) ease-out forwards}
+  @keyframes fillbar{to{width:100%}}
+  .glitch{animation:gl 1.6s infinite}@keyframes gl{0%,90%,100%{text-shadow:0 0 14px #14b8a6}92%{text-shadow:3px 0 #f472b6,-3px 0 #38bdf8}96%{text-shadow:-3px 0 #f472b6,3px 0 #38bdf8}}
+  .spin{animation:spin 6s linear infinite;transform-origin:50% 50%}.spin2{animation:spin 3.5s linear infinite reverse;transform-origin:50% 50%}
+  /* leaderboard */
+  .lbrow{position:absolute;left:0;right:0;transition:transform .6s cubic-bezier(.2,.8,.2,1);display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:12px;border:2px solid var(--c);background:rgba(8,28,48,.75)}
+  .lbrow.up{animation:fup .9s}.lbrow.down{animation:fdn .9s}.lbrow.me{box-shadow:0 0 14px var(--c)}
+  @keyframes fup{30%{background:rgba(16,185,129,.55)}}@keyframes fdn{30%{background:rgba(239,68,68,.55)}}
+  .chip{position:absolute;right:10px;top:-6px;font-weight:900;animation:chip 1.6s forwards;pointer-events:none}
+  @keyframes chip{0%{opacity:0;transform:translateY(8px)}15%{opacity:1}100%{opacity:0;transform:translateY(-22px)}}
+  /* podium */
+  .pod{display:flex;align-items:flex-end;justify-content:center;gap:8px;height:190px}.pod>div{width:92px;border-radius:12px 12px 0 0;text-align:center;font-weight:800;padding-top:6px;transform-origin:bottom;animation:rise 1s cubic-bezier(.2,.9,.3,1.2) both}
+  @keyframes rise{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+  .trophy{animation:bounce 1.2s infinite}@keyframes bounce{50%{transform:translateY(-10px)}}
 </style>
 </head>
-
-<!-- Firebase App & Database via CDN -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
 <body>
 <div id="bg" class="fixed inset-0" style="z-index:0"></div>
 <div id="app" class="relative max-w-6xl mx-auto p-3" style="z-index:1"></div>
+<div id="loader"></div>
+<script src="questions.js"></script>
 <script>
 /* =====================================================================
- * UI TEXTS (interface only, not subject-specific)
- * ===================================================================== */
-const UI = {
-  en: { loginT:"Teacher / Moderator", loginS:"Student", pin:"Teacher PIN", wrongPin:"Wrong PIN", yourName:"Your name", enter:"Enter", loginHint:"Log in to play",
-    lobby:"EXPEDITION PREP", members:"Members", ready:"READY", waiting:"WAITING", startGame:"START GAME!", rename:"Rename group", save:"Save", imReady:"We're ready!", notReady:"Not ready",
-    joinGroup:"Tap a group to join", yourGroup:"Your group", unassigned:"Students waiting to join", settings:"GAME SETTINGS", topic:"Topic", mode:"Game mode", modeV:"Quiz + Stealing + Catch-up", maze:"Maze size", mazeV:"Small → Wide → Bomb", needGroup:"At least one group must have members",
-    demo:"Demo mode: Firebase is not configured, so sync works only between tabs of this browser (see README).", waitT:"Waiting for the teacher to start...", yourTurn:"YOUR TURN! Tell your representative's choice to the teacher", watching:"Watching",
-    stage:"Stage", turn:"Turn", priority:"Priority", pick:"Representative: pick a glowing point", points:"pts", steal:"Steal!", whoSteal:"Which group steals this question?", quiz:"ARCHAEA QUIZ - POINT",
-    correct:"Correct!", wrong:"Wrong!", cont:"Continue", skip:"Skip turn", stageEnd:"Stage complete", next:"Next stage", scoreboard:"GROUP STANDINGS", active:"Active", catchup:"Free choice (Catch-Up)",
-    winner:"Winner", tie:"It's a tie!", again:"Back to lobby", group:"Group", thrown:"Thrown", timeUp:"Time's up!", final:"Final Results", endNow:"End stage", toLobby:"Lobby", clearStu:"Remove all students", fogHint:"Fog expands next stage" },
-  id: { loginT:"Guru / Moderator", loginS:"Siswa", pin:"PIN Guru", wrongPin:"PIN salah", yourName:"Namamu", enter:"Masuk", loginHint:"Masuk untuk bermain",
-    lobby:"PERSIAPAN PENJELAJAHAN", members:"Anggota", ready:"SIAP", waiting:"MENUNGGU", startGame:"MULAI GAME!", rename:"Ganti nama kelompok", save:"Simpan", imReady:"Kami siap!", notReady:"Belum siap",
-    joinGroup:"Ketuk kelompok untuk bergabung", yourGroup:"Kelompokmu", unassigned:"Siswa menunggu bergabung", settings:"PENGATURAN PERMAINAN", topic:"Topik", mode:"Mode permainan", modeV:"Kuis + Curi Soal + Catch-up", maze:"Ukuran labirin", mazeV:"Kecil → Luas → Bom", needGroup:"Minimal satu kelompok harus punya anggota",
-    demo:"Mode demo: Firebase belum diatur, sinkronisasi hanya antar tab di browser ini (lihat README).", waitT:"Menunggu guru memulai permainan...", yourTurn:"GILIRANMU! Sampaikan pilihan wakil kelompok ke guru", watching:"Menonton",
-    stage:"Tahap", turn:"Giliran", priority:"Prioritas", pick:"Wakil kelompok: pilih titik yang menyala", points:"poin", steal:"Curi!", whoSteal:"Kelompok mana yang mencuri soal ini?", quiz:"KUIS ARCHAEA - TITIK",
-    correct:"Benar!", wrong:"Salah!", cont:"Lanjut", skip:"Lewati giliran", stageEnd:"Tahap selesai", next:"Tahap berikutnya", scoreboard:"KLASEMEN KELOMPOK", active:"Aktif", catchup:"Bebas Pilih (Catch-Up)",
-    winner:"Pemenang", tie:"Seri!", again:"Kembali ke lobi", group:"Kelompok", thrown:"Dilempar", timeUp:"Waktu habis!", final:"Hasil Akhir", endNow:"Akhiri tahap", toLobby:"Lobi", clearStu:"Hapus semua siswa", fogHint:"Kabut meluas di tahap berikutnya" }
-};
-
-/* =====================================================================
- * GAME ENGINE (subject-independent: do not edit when changing topics)
+ * ARCHAEA QUEST ENGINE (subject-independent). Content lives in questions.js.
+ * Modules: UI texts · Store (Firebase) · Loader · Leaderboard · Host logic · Views
  * ===================================================================== */
 const Q = questionBank, $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
-let lang = "id", role = null, me = null, S = null, G = null, X = null, P = [], GN = {}, timer = null;
-const t = k => UI[lang][k], tr = o => o[lang], qById = id => Q.questions.find(q => q.id === id);
-const gName = g => (GN[g] && GN[g].name) || `${t("group")} ${g + 1}`;
-const pts = n => Q.difficulties[Q.nodes[n.i].d].points * (n.bomb ? 2 : 1);
+/* Optional tuning (add `settings:{...}` to questionBank to override) */
+const C = Object.assign({ stealBonus: 5, wrongPenalty: 5, stealSeconds: 15, interludeSeconds: 8, loaderMs: 1500 }, Q.settings || {});
+C.answerSeconds = Q.answerSeconds || 25; C.countdownSeconds = Q.countdownSeconds || 4;
 
-/* ---------- Shared store: claude.ai `db` (multi-device) with same-browser fallback ---------- */
+/* ---------- UI texts ---------- */
+const UI = {
+  en: { loginT:"Teacher / Host", loginS:"Student", pin:"Teacher PIN", roomOpt:"Room code (blank = new room)", roomIn:"Room code", wrongPin:"Wrong PIN", noRoom:"Room not found", yourName:"Your name", enter:"Enter",
+    room:"ROOM", joinAt:"Students join with this code", lobby:"EXPEDITION PREP", members:"members", ready:"READY", waiting:"WAITING", startGame:"START GAME!", rename:"Rename group", save:"Save", imReady:"We're ready!", notReady:"Not ready",
+    joinGroup:"Tap a group to join (solo play = a group of one)", unassigned:"Waiting to join", settings:"GAME SETTINGS", topic:"Topic", mode:"Mode", modeV:"Race + Quiz + Auto-steal", maze:"Stages", needGroup:"At least one group must have members", clearStu:"Remove all students",
+    demo:"Demo mode: Firebase not configured, sync works only between tabs of this browser (see README).", waitT:"Waiting for the host to start...", beClicker:"I'll be the clicker", noClicker:"no clicker", youClicker:"👆 You are the CLICKER", youMember:"Discuss with your clicker",
+    tapNode:"Tap a glowing point FAST!", discuss:"Discuss! Your clicker answers", stage:"Stage", nodes:"nodes", points:"pts", quiz:"ARCHAEA QUIZ - POINT", getReady:"GET READY!", watching:"Watching",
+    correct:"Correct!", wrong:"Wrong!", timeout:"Time ran out!", passing:"Passing the question to other groups...", stealBanner:"STEAL!", stealSub:"missed it, answer first to steal", stealWin:"STEAL!", stealPts:"steal points",
+    lb:"LEADERBOARD", answering:"answering", steals:"steals", feed:"LIVE ACTIVITY", answered:"Nodes done", accuracy:"Accuracy", stealsT:"Steals", stageEnd:"Stage complete", nextIn:"Next stage in", skip:"Skip", endNow:"End stage", toLobby:"Lobby", again:"Back to lobby", final:"Final Results", winner:"Winner", tie:"It's a tie!",
+    group:"Group", host:"HOST MONITOR", s_ok:"answered", s_bad:"missed", s_to:"ran out of time on", s_st:"STOLE", n:"node",
+    ld_boot:"BOOTING LAB", ld_enter:"ENTERING LAB", ld_tips:["Culturing archaea...","Sequencing 16S rRNA...","Aligning phylogeny...","Heating the vents...","Counting methanogens..."] },
+  id: { loginT:"Guru / Host", loginS:"Siswa", pin:"PIN Guru", roomOpt:"Kode ruang (kosong = ruang baru)", roomIn:"Kode ruang", wrongPin:"PIN salah", noRoom:"Ruang tidak ditemukan", yourName:"Namamu", enter:"Masuk",
+    room:"RUANG", joinAt:"Siswa bergabung dengan kode ini", lobby:"PERSIAPAN PENJELAJAHAN", members:"anggota", ready:"SIAP", waiting:"MENUNGGU", startGame:"MULAI GAME!", rename:"Ganti nama kelompok", save:"Simpan", imReady:"Kami siap!", notReady:"Belum siap",
+    joinGroup:"Ketuk kelompok untuk bergabung (main sendiri = kelompok satu orang)", unassigned:"Menunggu bergabung", settings:"PENGATURAN PERMAINAN", topic:"Topik", mode:"Mode", modeV:"Balapan + Kuis + Curi otomatis", maze:"Tahap", needGroup:"Minimal satu kelompok harus punya anggota", clearStu:"Hapus semua siswa",
+    demo:"Mode demo: Firebase belum diatur, sinkronisasi hanya antar tab di browser ini (lihat README).", waitT:"Menunggu host memulai...", beClicker:"Aku jadi clicker", noClicker:"belum ada clicker", youClicker:"👆 Kamu adalah CLICKER", youMember:"Diskusi dengan clicker-mu",
+    tapNode:"Ketuk titik yang menyala CEPAT!", discuss:"Diskusikan! Clicker yang menjawab", stage:"Tahap", nodes:"titik", points:"poin", quiz:"KUIS ARCHAEA - TITIK", getReady:"BERSIAPLAH!", watching:"Menonton",
+    correct:"Benar!", wrong:"Salah!", timeout:"Waktu habis!", passing:"Soal dilempar ke kelompok lain...", stealBanner:"CURI!", stealSub:"salah, jawab duluan untuk mencuri", stealWin:"CURIAN!", stealPts:"poin curian",
+    lb:"PAPAN PERINGKAT", answering:"menjawab", steals:"curian", feed:"AKTIVITAS LANGSUNG", answered:"Titik selesai", accuracy:"Akurasi", stealsT:"Curian", stageEnd:"Tahap selesai", nextIn:"Tahap berikutnya dalam", skip:"Lewati", endNow:"Akhiri tahap", toLobby:"Lobi", again:"Kembali ke lobi", final:"Hasil Akhir", winner:"Pemenang", tie:"Seri!",
+    group:"Kelompok", host:"MONITOR HOST", s_ok:"menjawab benar", s_bad:"salah di", s_to:"kehabisan waktu di", s_st:"MENCURI", n:"titik",
+    ld_boot:"MENYALAKAN LAB", ld_enter:"MEMASUKI LAB", ld_tips:["Mengkultur archaea...","Mengurutkan 16S rRNA...","Menyelaraskan filogeni...","Memanaskan ventilasi...","Menghitung metanogen..."] }
+};
+let lang = "id";
+const t = k => UI[lang][k], tr = o => o[lang], esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const shuffle = a => a.map(v => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map(x => x[1]);
+const qById = id => Q.questions.find(q => q.id === id);
+const diffFor = pts => +Object.keys(Q.difficulties).find(d => Q.difficulties[d].points === pts) || 1;
+
+/* ---------- Store: Firebase Realtime Database, or same-browser demo fallback ---------- */
 const mem = {}, subs = [], fire = () => subs.forEach(f => f()), bc = "BroadcastChannel" in window ? new BroadcastChannel("aq") : null;
 if (bc) bc.onmessage = e => { mem[e.data.path] = e.data.data; fire(); };
 const Store = {
-  fb: null,
+  fb: null, off: 0,
   async init() {
-    try { if (typeof firebase !== "undefined" && firebaseConfig && firebaseConfig.databaseURL) { firebase.initializeApp(firebaseConfig); this.fb = firebase.database(); } }
-    catch (e) { console.warn("Firebase init failed", e); this.fb = null; }
+    try {
+      if (typeof firebase !== "undefined" && firebaseConfig && firebaseConfig.databaseURL) {
+        firebase.initializeApp(firebaseConfig); this.fb = firebase.database();
+        this.fb.ref(".info/serverTimeOffset").on("value", s => this.off = s.val() || 0);   // same clock on every device
+      }
+    } catch (e) { console.warn("Firebase init failed", e); this.fb = null; }
   },
-  put(path, data) { if (this.fb) return this.fb.ref(path).set(data).catch(console.warn); mem[path] = data; bc && bc.postMessage({ path, data }); fire(); },
-  doc(path, cb) { if (this.fb) return this.fb.ref(path).on("value", s => cb(s.val())); subs.push(() => cb(mem[path] || null)); fire(); },
-  col(name, cb) {
-    if (this.fb) return this.fb.ref(name).on("value", s => { const v = s.val() || {}; cb(Object.keys(v).map(k => ({ id: k, ...v[k] }))); });
-    subs.push(() => cb(Object.keys(mem).filter(k => k.startsWith(name + "/") && mem[k]).map(k => ({ id: k.split("/")[1], ...mem[k] })))); fire();
+  now() { return Date.now() + this.off; },
+  put(p, d) { if (this.fb) return this.fb.ref(p).set(d).catch(console.warn); mem[p] = d; bc && bc.postMessage({ path: p, data: d }); fire(); },
+  tx(p, fn) { if (this.fb) return this.fb.ref(p).transaction(fn).catch(console.warn); const r = fn(mem[p] || null); if (r !== undefined) this.put(p, r); },
+  once(p) { return this.fb ? this.fb.ref(p).once("value").then(s => s.val()) : Promise.resolve(mem[p] || null); },
+  doc(p, cb) { if (this.fb) return this.fb.ref(p).on("value", s => cb(s.val())); subs.push(() => cb(mem[p] || null)); fire(); },
+  col(p, cb) {
+    if (this.fb) return this.fb.ref(p).on("value", s => { const v = s.val() || {}; cb(Object.keys(v).map(k => ({ id: k, ...v[k] }))); });
+    subs.push(() => cb(Object.keys(mem).filter(k => k.startsWith(p + "/") && mem[k]).map(k => ({ id: k.slice(p.length + 1), ...mem[k] })))); fire();
   }
 };
-const typing = () => document.activeElement && document.activeElement.tagName === "INPUT";
-function listen() {
-  Store.col("players", l => { P = l; if (!typing() && (role === "teacher" ? S.screen === "lobby" : !G || G.screen === "lobby")) render(); });
-  Store.col("groups", l => { GN = {}; l.forEach(d => GN[+d.id.slice(1)] = d); if (!typing() && (role === "teacher" ? S.screen === "lobby" : !G || G.screen === "lobby")) render(); });
-  Store.doc("game/state", d => { if (role !== "student") return; G = d && d.json ? JSON.parse(d.json) : null; if (G && G.screen === "play") startTick(); if (!typing()) render(); });
-}
-const members = g => P.filter(p => p.g === g);
+const now = () => Store.now();
 
-/* ---------- Teacher engine ---------- */
-function publish() {
-  const { screen, stage, scores, order, turn, nodes, modal, endAt, active } = S;
-  Store.put("game/state", { json: JSON.stringify({ screen, stage, scores, order, turn, nodes, modal, endAt, active }), v: Date.now() });
+/* ---------- Session state ---------- */
+let role = null, me = null, room = null, G = { screen: "lobby" }, S = { used: new Set() }, P = [], GN = {}, Nd = {}, timer = null;
+const R = p => `rooms/${room}/${p}`;
+const gName = g => (GN[g] && GN[g].name) || `${t("group")} ${g + 1}`;
+const members = g => P.filter(p => p.g === g);
+const myGroup = () => { const p = P.find(p => p.id === me.pid); return p ? p.g : -1; };
+const isClicker = g => g >= 0 && GN[g] && GN[g].clicker === me.pid;
+const nkey = (k, st = G.stage) => `${G.run}_${st}_${k}`, nodeDoc = k => Nd[nkey(k)];
+const running = () => G.screen === "play" && now() >= G.startAt && now() < G.endAt;
+const claimsOf = () => (G.plan || []).map((p, k) => [k, nodeDoc(k)]).filter(([, d]) => d && d.st === "claimed");
+const stealOpen = d => d && d.st === "thrown" && now() - d.thrownAt < C.stealSeconds * 1000;
+
+function stats() {   // per-group score / steals / correct, derived from node docs (single source of truth)
+  const s = Array.from({ length: Q.groups }, () => ({ score: 0, steals: 0, correct: 0 })); let tried = 0, done = 0, stl = 0;
+  if (G.run) for (const id in Nd) if (id.startsWith(G.run + "_")) {
+    const d = Nd[id]; tried += (d.tried || []).length;
+    (d.pens || []).forEach(p => s[p.g].score -= p.amt);
+    if (d.st === "done") { s[d.by].score += d.pts; s[d.by].correct++; done++; if (d.stolen) { s[d.by].steals++; stl++; } }
+  }
+  s.forEach(x => x.score = Math.max(0, x.score)); s.tot = { done, tried, stl }; return s;
 }
-function toLobby() {
-  clearInterval(timer); S = { screen: "lobby" };
-  Store.put("game/state", { json: JSON.stringify({ screen: "lobby" }), v: Date.now() });
-  for (let g = 0; g < Q.groups; g++) Store.put(`groups/g${g}`, { name: (GN[g] && GN[g].name) || "", ready: false });
-  render();
-}
-function clearStudents() { P.forEach(p => Store.put(`players/${p.id}`, null)); }
+
+/* ---------- Loader (neon-cyberpunk microbiology transitions) ---------- */
+const Loader = {
+  tm: 0,
+  show(title, sub, ms = C.loaderMs) {
+    const tips = t("ld_tips"), tip = sub || tips[Math.random() * tips.length | 0], el = $("#loader");
+    el.innerHTML = `<div class="text-center"><svg width="150" height="150" viewBox="0 0 100 100" fill="none" stroke-linecap="round">
+      <g class="spin" stroke="#2dd4bf">${[...Array(12)].map((_, i) => `<line x1="50" y1="14" x2="50" y2="6" transform="rotate(${i * 30} 50 50)"/>`).join("")}<circle cx="50" cy="50" r="30" stroke-width="3" fill="#06202c"/></g>
+      <g class="spin2" stroke="#a78bfa" stroke-width="2"><path d="M30 50c10-18 30 18 40 0M30 58c10-18 30 18 40 0M30 42c10-18 30 18 40 0" stroke="#f472b6"/></g></svg>
+      <div class="text-3xl font-black neon glitch mt-2 tracking-widest">${esc(title)}</div><div class="text-teal-200/80 text-sm mt-1">${esc(tip)}</div>
+      <div class="ldbar" style="--d:${ms}ms"><b></b></div></div>`;
+    el.classList.add("on"); clearTimeout(this.tm); this.tm = setTimeout(() => el.classList.remove("on"), ms);
+  }
+};
+
+/* ---------- Leaderboard (animated: rank slide, count-up, +/- chips) ---------- */
+const LB = {
+  last: {}, rows: {}, h: 48,
+  mount(el, h) { this.el = el; this.h = h; this.rows = {}; el.innerHTML = ""; el.style.position = "relative"; },
+  update(list, mine = -1, busy = new Set()) {
+    if (!this.el || !this.el.isConnected) return;
+    this.el.style.height = list.length * this.h + "px";
+    list.forEach((r, i) => {
+      let o = this.rows[r.g];
+      if (!o) { const e = document.createElement("div"); e.className = "lbrow"; e.style.setProperty("--c", Q.groupColors[r.g]); e.style.height = this.h - 6 + "px";
+        e.innerHTML = `<b class="rk w-6 text-lg" style="color:${Q.groupColors[r.g]}"></b><span class="nm flex-1 truncate font-bold"></span><span class="bd text-[11px] text-amber-300"></span><b class="sc text-lg tabular-nums">0</b>`;
+        this.el.appendChild(e); o = this.rows[r.g] = { e, rk: e.querySelector(".rk"), nm: e.querySelector(".nm"), bd: e.querySelector(".bd"), sc: e.querySelector(".sc") }; }
+      o.e.style.transform = `translateY(${i * this.h}px)`; o.e.classList.toggle("me", r.g === mine);
+      o.rk.textContent = i === 0 ? "👑" : i + 1; o.nm.textContent = `${Q.groupIcons[r.g]} ${gName(r.g)}`;
+      o.bd.textContent = (busy.has(r.g) ? "✍ " : "") + (r.steals ? `🥷${r.steals}` : "");
+      const prev = this.last[r.g] === undefined ? r.score : this.last[r.g];
+      if (r.score !== prev) {
+        const d = r.score - prev, c = document.createElement("span"); c.className = "chip " + (d > 0 ? "text-emerald-300" : "text-red-400"); c.textContent = (d > 0 ? "+" : "−") + Math.abs(d); o.e.appendChild(c); setTimeout(() => c.remove(), 1700);
+        o.e.classList.remove("up", "down"); void o.e.offsetWidth; o.e.classList.add(d > 0 ? "up" : "down"); this.tween(o.sc, prev, r.score);
+      } else if (!o.sc.dataset.v) o.sc.textContent = r.score;
+      o.sc.dataset.v = r.score; this.last[r.g] = r.score;
+    });
+  },
+  tween(el, a, b) { const t0 = performance.now(); (function f(n) { const k = Math.min(1, (n - t0) / 600); el.textContent = Math.round(a + (b - a) * k); if (k < 1) requestAnimationFrame(f); })(t0); }
+};
+
+/* ---------- Host logic (runs on the teacher's device only) ---------- */
+function publish() { Store.put(R("game/state"), { json: JSON.stringify({ screen: G.screen, stage: G.stage, run: G.run, active: G.active, startAt: G.startAt, endAt: G.endAt, nextAt: G.nextAt, plan: G.plan }), v: Date.now() }); }
+function setGroup(g, patch) { const c = GN[g] || {}; Store.put(R(`groups/g${g}`), { name: c.name || "", ready: !!c.ready, clicker: c.clicker || "", cname: c.cname || "", ...patch }); }
+function toLobby() { G = { screen: "lobby" }; publish(); for (let g = 0; g < Q.groups; g++) setGroup(g, { ready: false }); go(); }
+function clearStudents() { P.forEach(p => Store.put(R(`players/${p.id}`), null)); for (let g = 0; g < Q.groups; g++) Store.put(R(`groups/g${g}`), { name: "", ready: false, clicker: "", cname: "" }); }
 function startGame() {
-  const active = [...Array(Q.groups).keys()].filter(g => members(g).length);
-  if (!active.length) return;
-  S = { screen: "play", stage: 0, scores: Array(Q.groups).fill(0), used: new Set(), active };
-  startStage();
+  const active = [...Array(Q.groups).keys()].filter(g => members(g).length); if (!active.length) return;
+  active.forEach(g => { if (!members(g).some(p => p.id === (GN[g] || {}).clicker)) setGroup(g, { clicker: members(g)[0].id, cname: members(g)[0].name }); });
+  Object.keys(Nd).forEach(id => Store.put(R(`nodes/${id}`), null)); LB.last = {};
+  S.used = new Set(); G = { screen: "play", stage: 0, run: Date.now().toString(36), active }; startStage();
+}
+function pickQuestion(d) {
+  const pool = Q.questions.filter(q => q.d === d); let fresh = pool.filter(q => !S.used.has(q.id));
+  if (!fresh.length) { pool.forEach(q => S.used.delete(q.id)); fresh = pool; }
+  const q = fresh[Math.random() * fresh.length | 0]; S.used.add(q.id); return q;
 }
 function startStage() {
-  const st = Q.stages[S.stage];
-  S.nodes = Q.nodes.slice(0, st.reveal).map((n, i) => ({ i, st: "open", bomb: !!st.bomb && Math.random() < 0.3, qid: null, ord: null, from: null, by: null }));
-  S.order = [...S.active].sort((a, b) => S.scores[a] - S.scores[b] || a - b);   // lowest score = priority / catch-up
-  S.turn = 0; S.modal = null; S.pendingEnd = false; S.screen = "play";
-  S.endAt = Date.now() + Q.timerSeconds * 1000;
-  startTick(); render();
+  const st = Q.stages[G.stage], pos = st.pick || [...Array(st.count).keys()];
+  G.plan = pos.map((p, k) => { const pts = st.points[k % st.points.length], q = pickQuestion(diffFor(pts)); return { pos: p, pts, qid: q.id, ord: Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3] }; });
+  G.screen = "play"; G.startAt = now() + (C.countdownSeconds + 2) * 1000; G.endAt = G.startAt + st.seconds * 1000; G.nextAt = 0;
+  publish(); startTick(); go();
 }
-function startTick() { clearInterval(timer); timer = setInterval(tick, 250); }
-function tick() {
-  if (!X || X.screen !== "play") return;
-  const rem = Math.max(0, Math.ceil((X.endAt - Date.now()) / 1000));
-  const bar = $("#tbar"), txt = $("#ttxt");
-  if (bar) { bar.style.width = (rem / Q.timerSeconds * 100) + "%"; bar.style.background = rem < 60 ? "#ef4444" : rem < 120 ? "#f59e0b" : "#14b8a6"; }
-  if (txt) txt.textContent = `${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`;
-  if (rem <= 0 && role === "teacher") { S.modal ? (S.pendingEnd = true) : endStage(); }
-}
-function endStage() { clearInterval(timer); S.screen = S.stage >= Q.stages.length - 1 ? "final" : "stageEnd"; S.modal = null; render(); }
-function assignQ(n) {
-  if (n.qid) return;
-  const pool = Q.questions.filter(q => q.d === Q.nodes[n.i].d);
-  let fresh = pool.filter(q => !S.used.has(q.id));
-  if (!fresh.length) { pool.forEach(q => S.used.delete(q.id)); fresh = pool; }
-  const q = fresh[Math.floor(Math.random() * fresh.length)];
-  S.used.add(q.id); n.qid = q.id; n.ord = Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3];
-}
-function pick(i) {
-  const n = S.nodes[i]; if (S.modal || S.screen !== "play") return;
-  if (n.st === "open") { assignQ(n); S.modal = { i, g: S.order[S.turn], phase: "q", steal: false }; }
-  else if (n.st === "thrown") { assignQ(n); S.modal = { i, g: null, phase: "who", steal: true }; }
-  else return;
-  render();
-}
-function chooseStealer(g) { S.modal.g = g; S.modal.phase = "q"; render(); }
-function answer(k) {
-  const m = S.modal, n = S.nodes[m.i], p = pts(n), ok = n.ord[k] === qById(n.qid).a;
-  let delta = 0;
-  if (ok) { delta = p; n.st = "done"; n.by = m.g; }
-  else { if (n.bomb) delta = -Math.floor(p / 2); n.st = m.steal ? "lost" : "thrown"; if (!m.steal) n.from = m.g; }
-  S.scores[m.g] = Math.max(0, S.scores[m.g] + delta);
-  Object.assign(m, { phase: "res", ok, delta, k }); render();
-}
-function closeModal() {
-  if (!S.modal.steal) S.turn = (S.turn + 1) % S.order.length;
-  S.modal = null;
-  if (S.pendingEnd || !S.nodes.some(n => n.st === "open" || n.st === "thrown")) endStage(); else render();
-}
-function skipTurn() { S.turn = (S.turn + 1) % S.order.length; render(); }
-function nextStage() { S.stage++; startStage(); }
+function endStage() { if (G.screen !== "play") return; G.screen = G.stage >= Q.stages.length - 1 ? "final" : "stageEnd"; G.nextAt = now() + C.interludeSeconds * 1000; publish(); go(); }
+function nextStage() { G.stage++; startStage(); }
+function checkEnd() { if (role === "teacher" && G.screen === "play" && G.plan && G.plan.every((p, k) => { const d = nodeDoc(k); return d && (d.st === "done" || d.st === "lost"); })) endStage(); }
 
-/* ---------- Student / login actions ---------- */
-function setLang(l) { lang = l; document.documentElement.lang = l; render(); }
-function teacherLogin() { if ($("#pin").value === Q.teacherPin) { role = "teacher"; toLobby(); } else $("#err").textContent = t("wrongPin"); }
-function studentLogin() {
-  const name = $("#sname").value.trim(); if (!name) return;
-  let pid = null; try { pid = localStorage.getItem("aq_pid"); } catch (e) {}
-  if (!pid) { pid = "p" + Math.random().toString(36).slice(2, 9); try { localStorage.setItem("aq_pid", pid); } catch (e) {} }
-  me = { pid, name }; role = "student"; Store.put(`players/${pid}`, { name, g: -1 }); render();
+/* ---------- Player actions (atomic transactions on the node document) ---------- */
+function claim(k) {
+  const g = myGroup(); if (!isClicker(g) || !G.active.includes(g) || !running() || claimsOf().some(([, d]) => d.g === g)) return;
+  Store.tx(R(`nodes/${nkey(k)}`), cur => {
+    if (!cur) return { st: "claimed", g, pid: me.pid, ts: now(), tried: [], pts: G.plan[k].pts };
+    if (cur.st === "thrown" && !(cur.tried || []).includes(g) && !stealOpen(cur)) return { ...cur, st: "claimed", g, pid: me.pid, ts: now() };
+  });
 }
-const myG = () => { const p = P.find(p => p.id === me.pid); return p ? p.g : -1; };
-function joinGroup(g) { Store.put(`players/${me.pid}`, { name: me.name, g }); }
-function saveGroup(g, ready) {
-  const name = $("#gname") ? $("#gname").value.trim() : (GN[g] && GN[g].name) || "";
-  Store.put(`groups/g${g}`, { name, ready: ready === undefined ? !!(GN[g] && GN[g].ready) : ready });
+function ans(k, opt) {   // clicker taps an option: own claim or steal attempt
+  const g = myGroup(), d = nodeDoc(k); if (!d || !isClicker(g) || !G.active.includes(g) || !running()) return;
+  if (d.st === "claimed" && d.g === g) settle(k, opt, "own"); else if (stealOpen(d) && !(d.tried || []).includes(g)) settle(k, opt, "steal");
 }
+function settle(k, opt, mode) {
+  const p = G.plan[k], g = role === "student" ? myGroup() : -1;
+  Store.tx(R(`nodes/${nkey(k)}`), cur => {
+    if (!cur) return;
+    const tried0 = cur.tried || [];
+    if (mode === "own" && (cur.st !== "claimed" || (role === "student" && (cur.g !== g || cur.pid !== me.pid)))) return;
+    if (mode === "steal" && (!stealOpen(cur) || tried0.includes(g))) return;
+    const who = mode === "steal" ? g : cur.g, ok = opt !== null && p.ord[opt] === qById(p.qid).a, stolen = tried0.length > 0 || mode === "steal";
+    if (ok) { const pts = p.pts + (stolen ? C.stealBonus : 0); return { ...cur, st: "done", by: who, g: who, pts, stolen, last: { g: who, ok: true, opt, rt: now(), pts, steal: stolen } }; }
+    const tried = [...tried0, who], pens = mode === "own" && C.wrongPenalty ? [...(cur.pens || []), { g: who, amt: C.wrongPenalty }] : (cur.pens || []);
+    const lost = tried.length >= G.active.length;
+    return { ...cur, st: lost ? "lost" : "thrown", tried, pens, thrownAt: now(), last: { g: who, ok: false, opt, timeout: opt === null, rt: now(), steal: mode === "steal", pen: mode === "own" ? C.wrongPenalty : 0 } };
+  });
+}
+const releaseStale = () => claimsOf().forEach(([k, d]) => { if (now() - d.ts > C.answerSeconds * 1000) settle(k, null, "own"); });
 
-/* ---------- Rendering ---------- */
-function mazeBg() {   // random maze drawn behind everything (recursive backtracker)
-  const W = 36, H = 20, vis = [...Array(H)].map(() => Array(W).fill(0)), R = [...Array(H)].map(() => Array(W).fill(1)), B = [...Array(H)].map(() => Array(W).fill(1));
-  const st = [[0, 0]]; vis[0][0] = 1;
-  while (st.length) {
-    const [x, y] = st[st.length - 1];
-    const nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy, dx, dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < W && b < H && !vis[b][a]);
-    if (!nb.length) { st.pop(); continue; }
-    const [a, b, dx, dy] = nb[Math.random() * nb.length | 0]; vis[b][a] = 1;
-    if (dx === 1) R[y][x] = 0; if (dx === -1) R[b][a] = 0; if (dy === 1) B[y][x] = 0; if (dy === -1) B[b][a] = 0; st.push([a, b]);
-  }
-  let d = ""; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (R[y][x]) d += `M${x + 1} ${y}v1`; if (B[y][x]) d += `M${x} ${y + 1}h1`; }
-  $("#bg").innerHTML = `<svg class="w-full h-full" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice"><path d="${d}" stroke="#2dd4bf" stroke-opacity=".17" stroke-width=".07" fill="none"/></svg>`;
+/* ---------- Login / lobby actions ---------- */
+const newCode = () => [...Array(4)].map(() => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.random() * 32 | 0]).join("");
+const lsGet = k => { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }, lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+function setLang(l) { lang = l; document.documentElement.lang = l; view = null; go(); }
+async function teacherLogin() {
+  if ($("#pin").value !== Q.teacherPin) return void ($("#err").textContent = t("wrongPin"));
+  room = ($("#rcode").value.trim().toUpperCase()) || newCode(); role = "teacher";
+  const old = await Store.once(R("game/state")); G = old && old.json ? JSON.parse(old.json) : { screen: "lobby" };
+  Store.put(R("meta"), { t: Date.now() }); enterRoom();
 }
-const langBtn = () => `<div class="flex gap-1 text-xs">${["en", "id"].map(l => `<button onclick="setLang('${l}')" class="px-2 py-1 rounded ${lang === l ? "bg-teal-400 text-black font-bold" : "bg-slate-700"}">${l === "en" ? "English" : "Bahasa Indonesia"}</button>`).join("")}</div>`;
-const title = () => `<div class="text-center"><div class="text-2xl md:text-3xl font-black neon">🦠 MICROBE EVOLUTION: ${esc(tr(Q.topic.title)).toUpperCase()}</div><div class="text-sm text-teal-200/80">${esc(tr(Q.topic.subtitle))}</div></div>`;
+async function studentLogin() {
+  const name = $("#sname").value.trim(), code = $("#scode").value.trim().toUpperCase(); if (!name || !code) return;
+  room = code; if (!(await Store.once(R("meta")))) { room = null; return void ($("#err2").textContent = t("noRoom")); }
+  let pid = lsGet("aq_pid"); if (!pid) { pid = "p" + Math.random().toString(36).slice(2, 9); lsSet("aq_pid", pid); }
+  lsSet("aq_name", name); lsSet("aq_room", code); me = { pid, name }; role = "student"; Store.put(R(`players/${pid}`), { name, g: -1 }); enterRoom();
+}
+function enterRoom() {
+  Loader.show(t("ld_enter")); const r = room; startTick();
+  Store.col(R("players"), l => { if (room === r) { P = l; softRefresh(); } });
+  Store.col(R("groups"), l => { if (room === r) { GN = {}; l.forEach(d => GN[+d.id.slice(1)] = d); softRefresh(); } });
+  Store.col(R("nodes"), l => { if (room === r) { Nd = {}; l.forEach(d => Nd[d.id] = d); checkEnd(); softRefresh(); } });
+  if (role === "student") Store.doc(R("game/state"), d => { if (room === r) { G = d && d.json ? JSON.parse(d.json) : { screen: "lobby" }; go(); } });
+  else publish();
+  go();
+}
+const typing = () => document.activeElement && document.activeElement.tagName === "INPUT";
+const joinGroup = g => Store.put(R(`players/${me.pid}`), { name: me.name, g });
+const saveName = g => setGroup(g, { name: $("#gname").value.trim() });
+const toggleReady = g => setGroup(g, { ready: !(GN[g] && GN[g].ready) });
+const beClicker = g => setGroup(g, { clicker: me.pid, cname: me.name });
+
+/* ---------- Views ---------- */
+let view = null, stageSeen = null, paneKey = null, runSeen = null;
+const B = {};   // view builders
+function go() {
+  if (!$("#app")) return;
+  const key = !role ? "login" : G.screen === "lobby" ? "lobby-" + role : G.screen === "play" ? "play-" + role : "end-" + G.stage + G.screen;
+  if (G.run !== runSeen) { runSeen = G.run; LB.last = {}; }
+  if (G.screen === "play" && role && stageSeen !== G.run + ":" + G.stage) { stageSeen = G.run + ":" + G.stage; const st = Q.stages[G.stage]; Loader.show(`${t("stage")} ${G.stage + 1}`, tr(st.label), 1800); view = null; }
+  if (key !== view || key.startsWith("lobby")) { if (key.startsWith("lobby") && key === view && typing()) return; view = key; paneKey = null; (B[key.split("-")[0] + (key.startsWith("end") ? "" : "-" + role)] || B.login)(); }
+  refresh();
+}
+function softRefresh() { if (view && view.startsWith("lobby")) { if (!typing()) go(); } else refresh(); }
+function refresh() {
+  if (!view) return;
+  if (view === "play-teacher") refreshT(); else if (view === "play-student") refreshS();
+}
+const langBtn = () => `<div class="flex gap-1 text-xs">${["en", "id"].map(l => `<button onclick="setLang('${l}')" class="px-2 py-1 rounded ${lang === l ? "bg-teal-400 text-black font-bold" : "bg-slate-700"}">${l === "en" ? "EN" : "ID"}</button>`).join("")}</div>`;
+const title = () => `<div class="text-center"><div class="text-2xl md:text-3xl font-black neon">🦠 ${esc(tr(Q.topic.title)).toUpperCase()}</div><div class="text-sm text-teal-200/80">${esc(tr(Q.topic.subtitle))}</div></div>`;
 const demoBanner = () => Store.fb ? "" : `<div class="text-center text-xs text-amber-300 my-1">⚠ ${t("demo")}</div>`;
 
-function render() {
-  const app = $("#app"); X = role === "teacher" ? S : G;
-  if (!role) return renderLogin(app);
-  if (role === "student") {
-    if (!G || G.screen === "lobby" || !G.screen) return renderStudentLobby(app);
-    return G.screen === "play" ? renderStudentPlay(app) : renderEnd(app, false);
-  }
-  if (S.screen === "lobby") return renderLobbyT(app);
-  publish();
-  if (S.screen === "play") return renderPlayT(app);
-  renderEnd(app, true);
-}
-function renderLogin(app) {
-  app.innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="py-8">${title()}${demoBanner()}
+B.login = () => {
+  $("#app").innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="py-6">${title()}${demoBanner()}
   <div class="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto mt-8">
-    <div class="glass p-5"><h3 class="text-xl font-bold mb-3">🎓 ${t("loginT")}</h3><input id="pin" type="password" placeholder="${t("pin")}" onkeydown="if(event.key==='Enter')teacherLogin()"><div id="err" class="text-red-400 text-sm h-5"></div>
-      <button onclick="teacherLogin()" class="w-full mt-1 py-2 rounded-xl bg-teal-400 text-black font-bold">${t("enter")}</button></div>
-    <div class="glass p-5"><h3 class="text-xl font-bold mb-3">🧑‍🎓 ${t("loginS")}</h3><input id="sname" maxlength="20" placeholder="${t("yourName")}" onkeydown="if(event.key==='Enter')studentLogin()"><div class="h-5"></div>
-      <button onclick="studentLogin()" class="w-full mt-1 py-2 rounded-xl bg-amber-400 text-black font-bold">${t("enter")}</button></div></div></div>`;
-}
-function groupCard(g, mine, teacher) {
-  const c = Q.groupColors[g], ms = members(g), rd = GN[g] && GN[g].ready;
-  const click = !teacher ? `onclick="joinGroup(${g})"` : "";
-  return `<div ${click} class="glass p-3 ${!teacher && !mine ? "cursor-pointer hover:scale-[1.02]" : ""}" style="border:2px solid ${c};${mine ? `box-shadow:0 0 22px ${c}` : ""}">
-    <div class="flex items-center gap-2"><span class="text-3xl">${Q.groupIcons[g]}</span><div class="flex-1"><div class="font-extrabold">${esc(gName(g)).toUpperCase()}</div><div class="text-xs text-teal-200/70">${ms.length} ${t("members")}</div></div>
+    <div class="glass p-5 space-y-2"><h3 class="text-xl font-bold">🎓 ${t("loginT")}</h3><input id="pin" type="password" placeholder="${t("pin")}"><input id="rcode" maxlength="5" placeholder="${t("roomOpt")}"><div id="err" class="text-red-400 text-sm h-5"></div>
+      <button onclick="teacherLogin()" class="w-full py-2 rounded-xl bg-teal-400 text-black font-bold">${t("enter")}</button></div>
+    <div class="glass p-5 space-y-2"><h3 class="text-xl font-bold">🧑‍🎓 ${t("loginS")}</h3><input id="sname" maxlength="20" placeholder="${t("yourName")}" value="${esc(lsGet("aq_name"))}"><input id="scode" maxlength="5" placeholder="${t("roomIn")}" value="${esc(lsGet("aq_room"))}"><div id="err2" class="text-red-400 text-sm h-5"></div>
+      <button onclick="studentLogin()" class="w-full py-2 rounded-xl bg-amber-400 text-black font-bold">${t("enter")}</button></div></div></div>`;
+};
+function groupCard(g, mine, host) {
+  const c = Q.groupColors[g], ms = members(g), rd = GN[g] && GN[g].ready, ck = GN[g] && GN[g].clicker ? GN[g].cname : "";
+  return `<div ${!host ? `onclick="joinGroup(${g})"` : ""} class="glass p-3 ${!host && !mine ? "cursor-pointer" : ""}" style="border:2px solid ${c};${mine ? `box-shadow:0 0 22px ${c}` : ""}">
+    <div class="flex items-center gap-2"><span class="text-3xl">${Q.groupIcons[g]}</span><div class="flex-1 min-w-0"><div class="font-extrabold truncate">${esc(gName(g)).toUpperCase()}</div><div class="text-xs text-teal-200/70">${ms.length} ${t("members")} · 👆 ${ck ? esc(ck) : t("noClicker")}</div></div>
       <span class="text-xs px-2 py-1 rounded border ${rd ? "border-emerald-400 text-emerald-300" : "border-slate-500 text-slate-400"}">${rd ? t("ready") : t("waiting")}</span></div>
-    <div class="mt-2 text-sm grid grid-cols-2 gap-x-2 min-h-[3rem]">${ms.map(p => `<div class="truncate">👤 ${esc(p.name)}</div>`).join("")}</div></div>`;
+    <div class="mt-2 text-sm grid grid-cols-2 gap-x-2 min-h-[2.5rem]">${ms.map(p => `<div class="truncate">${p.id === (GN[g] || {}).clicker ? "👆" : "👤"} ${esc(p.name)}</div>`).join("")}</div></div>`;
 }
-function renderLobbyT(app) {
-  const free = P.filter(p => p.g < 0);
-  app.innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<button onclick="role=null;render()" class="text-xs underline text-slate-400">⎋</button></div>${title()}${demoBanner()}
-  <div class="grid lg:grid-cols-[1fr_300px] gap-4 mt-4"><div><div class="text-center font-bold tracking-widest mb-3">${t("lobby")} (${Q.groups})</div>
+B["lobby-teacher"] = () => {
+  const free = P.filter(p => p.g < 0), can = P.some(p => p.g >= 0);
+  $("#app").innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-xs text-teal-300">${t("host")}</span></div>${title()}${demoBanner()}
+  <div class="glass text-center py-3 mt-3"><div class="text-xs text-teal-200/70">${t("joinAt")}</div><div class="text-5xl font-black tracking-[.3em] neon">${room}</div></div>
+  <div class="grid lg:grid-cols-[1fr_300px] gap-4 mt-4"><div><div class="text-center font-bold tracking-widest mb-3">${t("lobby")}</div>
     <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${[...Array(Q.groups).keys()].map(g => groupCard(g, false, true)).join("")}</div></div>
-    <div class="glass p-4 space-y-3"><div class="font-bold tracking-wide">${t("settings")}</div>
-      <div><div class="text-xs text-teal-200/70">${t("topic")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${esc(tr(Q.topic.subtitle))}</div></div>
-      <div><div class="text-xs text-teal-200/70">${t("mode")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${t("modeV")}</div></div>
-      <div><div class="text-xs text-teal-200/70">${t("maze")}</div><div class="p-2 rounded bg-slate-800/70 text-sm">${t("mazeV")}</div></div>
-      <div><div class="text-xs text-teal-200/70">${t("unassigned")}</div><div class="max-h-28 overflow-auto text-sm">${free.map(p => `<div>👤 ${esc(p.name)}</div>`).join("") || "—"}</div></div>
+    <div class="glass p-4 space-y-3"><div class="font-bold">${t("settings")}</div>
+      <div class="text-sm"><span class="text-teal-200/70">${t("topic")}:</span> ${esc(tr(Q.topic.subtitle))}</div><div class="text-sm"><span class="text-teal-200/70">${t("mode")}:</span> ${t("modeV")}</div>
+      <div class="text-sm"><span class="text-teal-200/70">${t("maze")}:</span> ${Q.stages.map(s => s.count).join(" → ")}</div>
+      <div><div class="text-xs text-teal-200/70">${t("unassigned")}</div><div class="max-h-24 overflow-auto text-sm">${free.map(p => `<div>👤 ${esc(p.name)}</div>`).join("") || "—"}</div></div>
       <button onclick="clearStudents()" class="w-full py-1 rounded-lg text-xs border border-slate-500 text-slate-300">${t("clearStu")}</button>
-      <button onclick="startGame()" class="w-full py-3 rounded-xl font-black text-black bg-gradient-to-b from-amber-300 to-amber-500 ${P.some(p => p.g >= 0) ? "" : "opacity-40"}">${t("startGame")}</button>
-      ${P.some(p => p.g >= 0) ? "" : `<div class="text-xs text-amber-300">${t("needGroup")}</div>`}</div></div>`;
-}
-function renderStudentLobby(app) {
-  const g = myG();
-  app.innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-sm">👤 ${esc(me.name)}</span></div>${title()}${demoBanner()}
+      <button onclick="startGame()" class="w-full py-3 rounded-xl font-black text-black bg-gradient-to-b from-amber-300 to-amber-500 ${can ? "" : "opacity-40"}">${t("startGame")}</button>${can ? "" : `<div class="text-xs text-amber-300">${t("needGroup")}</div>`}</div></div>`;
+};
+B["lobby-student"] = () => {
+  const g = myGroup(), c = GN[g] || {};
+  $("#app").innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-sm">👤 ${esc(me.name)} · ${room}</span></div>${title()}${demoBanner()}
   <p class="text-center mt-3 text-sm text-teal-100">${g < 0 ? t("joinGroup") : t("waitT")}</p>
-  ${g >= 0 ? `<div class="glass p-3 mt-3"><div class="text-xs mb-1">${t("rename")}</div><div class="flex gap-2"><input id="gname" maxlength="18" value="${esc((GN[g] && GN[g].name) || "")}" placeholder="${t("group")} ${g + 1}">
-    <button onclick="saveGroup(${g})" class="px-3 rounded-lg bg-teal-400 text-black font-bold">${t("save")}</button></div>
-    <button onclick="saveGroup(${g},${!(GN[g] && GN[g].ready)})" class="w-full mt-2 py-2 rounded-xl font-bold ${GN[g] && GN[g].ready ? "bg-slate-600" : "bg-emerald-400 text-black"}">${GN[g] && GN[g].ready ? t("notReady") : t("imReady")}</button></div>` : ""}
+  ${g >= 0 ? `<div class="glass p-3 mt-3"><div class="text-xs mb-1">${t("rename")}</div><div class="flex gap-2"><input id="gname" maxlength="18" value="${esc(c.name || "")}" placeholder="${t("group")} ${g + 1}"><button onclick="saveName(${g})" class="px-3 rounded-lg bg-teal-400 text-black font-bold">${t("save")}</button></div>
+    <button onclick="beClicker(${g})" class="w-full mt-2 py-2 rounded-xl font-bold ${c.clicker === me.pid ? "bg-amber-400 text-black" : "bg-slate-700"}">${c.clicker === me.pid ? t("youClicker") : "👆 " + t("beClicker")}</button>
+    <button onclick="toggleReady(${g})" class="w-full mt-2 py-2 rounded-xl font-bold ${c.ready ? "bg-slate-600" : "bg-emerald-400 text-black"}">${c.ready ? t("notReady") : t("imReady")}</button></div>` : ""}
   <div class="grid gap-3 mt-4">${[...Array(Q.groups).keys()].map(i => groupCard(i, i === g, false)).join("")}</div></div>`;
-}
-function sidebar() {
-  const rk = [...X.active].sort((a, b) => X.scores[b] - X.scores[a]), cur = X.order[X.turn];
-  return `<div class="glass p-3"><div class="text-center font-bold tracking-wide mb-2 text-teal-200">${t("scoreboard")}</div><div class="space-y-2">${rk.map((g, r) => `
-    <div class="rounded-xl p-2 flex items-center gap-2" style="border:2px solid ${Q.groupColors[g]};background:${g === cur ? "rgba(20,184,166,.25)" : "rgba(8,28,48,.6)"}">
-      <div class="text-xl font-black w-6" style="color:${Q.groupColors[g]}">${r + 1}</div><div class="flex-1 min-w-0"><div class="font-bold truncate">${Q.groupIcons[g]} ${esc(gName(g))}</div><div class="text-sm">${X.scores[g]} ${t("points")}</div>
-      ${X.order[0] === g ? `<div class="text-[10px] text-amber-300">⭐ ${t("catchup")}</div>` : ""}</div>${g === cur ? `<span class="text-xs px-2 rounded bg-emerald-500 text-black font-bold">${t("active")}</span>` : ""}</div>`).join("")}</div></div>`;
-}
-function nodeHtml(n, i, T) {
-  const node = X.nodes[i], pos = `left:${n.x}%;top:${n.y}%`;
-  if (!node) return `<div class="node fog flex items-center justify-center" style="${pos}">?</div>`;
-  const dc = Q.difficulties[n.d].color;
-  const label = node.st === "done" ? `✓<span class="block text-[9px] leading-none">${node.by + 1}</span>` : node.st === "lost" ? "✗" : node.st === "thrown" ? "↩" : node.bomb ? "💣" : pts(node);
-  const bg = node.st === "done" ? `background:${Q.groupColors[node.by]};border-color:${Q.groupColors[node.by]};` : "";
-  const click = T && (node.st === "open" || node.st === "thrown") ? `onclick="pick(${i})"` : "";
-  return `<button ${click} class="node ${node.st} flex flex-col items-center justify-center" style="${pos};--c:${dc};${bg}">${label}</button>`;
-}
-function modalBody(T) {
-  const m = X.modal, n = X.nodes[m.i], d = Q.difficulties[Q.nodes[m.i].d];
-  if (m.phase === "who") return `<h3 class="text-lg font-bold mb-3 text-center">🔓 ${t("whoSteal")}</h3>${T ? `<div class="grid grid-cols-2 gap-2">${X.active.filter(g => g !== n.from).map(g => `<button onclick="chooseStealer(${g})" class="py-3 rounded-lg font-bold text-black" style="background:${Q.groupColors[g]}">${esc(gName(g))}</button>`).join("")}</div>` : ""}`;
-  const q = qById(n.qid);
-  return `<div class="flex justify-between items-center mb-2"><span class="px-3 py-1 rounded-full font-bold text-black text-sm" style="background:${Q.groupColors[m.g]}">${esc(gName(m.g))}${m.steal ? " · " + t("steal") : ""}</span>
-    <span style="color:${d.color}" class="font-bold text-sm">${tr(d.label)} · ${pts(n)} ${t("points")}${n.bomb ? " 💣" : ""}</span></div>
-    <h3 class="text-lg md:text-xl font-bold mb-3 text-center">${tr(q.q)}</h3>
-    <div class="space-y-2">${n.ord.map((oi, k) => {
-      let cls = "bg-slate-800/80 border-teal-400/40" + (T && m.phase === "q" ? " hover:bg-teal-900 cursor-pointer" : "");
-      if (m.phase === "res") cls = oi === q.a ? "bg-emerald-700 border-emerald-300" : k === m.k ? "bg-red-700 border-red-300" : "bg-slate-900 opacity-50 border-transparent";
-      return `<div ${T && m.phase === "q" ? `onclick="answer(${k})"` : ""} class="flex items-center gap-3 px-3 py-2 rounded-xl border ${cls}"><b class="w-7 h-7 rounded-md bg-teal-400/20 flex items-center justify-center">${"ABCD"[k]}</b>${q.o[lang][oi]}</div>`;
-    }).join("")}</div>
-    ${m.phase === "res" ? `<div class="text-center mt-4"><div class="pop text-3xl font-black ${m.ok ? "text-emerald-300" : "text-red-400"}">${m.ok ? "✅ " + t("correct") : "❌ " + t("wrong")}</div>
-      <div class="pop text-2xl font-extrabold mt-1">${m.delta > 0 ? "+" : ""}${m.delta} ${t("points")}</div>${!m.ok && !m.steal ? `<div class="text-sm text-amber-300">↩ ${t("thrown")}</div>` : ""}
-      ${T ? `<button onclick="closeModal()" class="mt-3 px-6 py-2 rounded-full bg-teal-400 text-black font-bold">${t("cont")}</button>` : ""}</div>` : ""}`;
-}
-function timerBar() {
-  const st = Q.stages[X.stage];
-  return `<div class="glass px-4 py-2 mt-3"><div class="flex justify-between text-sm font-bold"><span>${tr(st.label)} ${st.bomb ? "💣" : ""}</span><span>⏱ <b id="ttxt"></b></span></div>
-    <div class="h-3 rounded bg-slate-800 overflow-hidden mt-1"><div id="tbar" class="h-full" style="width:100%"></div></div></div>`;
-}
-function renderPlayT(app) {
-  const st = Q.stages[X.stage], cur = X.order[X.turn];
-  app.innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<div class="text-xs flex gap-3"><button onclick="endStage()" class="underline">${t("endNow")}</button><button onclick="toLobby()" class="underline">${t("toLobby")}</button></div></div>${title()}
-  <div class="grid lg:grid-cols-[250px_1fr] gap-3 mt-3">${sidebar()}<div>
-    <div class="text-center text-sm mb-2"><span class="px-3 py-1 rounded-full font-bold text-black" style="background:${Q.groupColors[cur]}">${t("turn")}: ${esc(gName(cur))}</span>
-      <span class="ml-2 text-teal-100">${t("pick")}</span> <button onclick="skipTurn()" class="ml-2 text-xs underline text-slate-400">${t("skip")}</button></div>
-    <div class="relative glass overflow-hidden" style="aspect-ratio:16/9">
-      <svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${Q.nodes.slice(0, st.reveal).map(n => n.x + "," + n.y).join(" ")}" fill="none" stroke="#14b8a6" stroke-opacity=".55" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="stroke-width:10px;filter:drop-shadow(0 0 6px #2dd4bf)"/></svg>
-      ${Q.nodes.map((n, i) => nodeHtml(n, i, true)).join("")}
-      ${X.modal ? `<div class="absolute inset-0 bg-black/60 flex items-center justify-center p-2"><div class="glass w-full max-w-xl p-4 max-h-full overflow-auto"><div class="text-center text-xs tracking-widest text-teal-200 mb-1">${t("quiz")} ${X.modal.i + 1}</div>${modalBody(true)}</div></div>` : ""}
-    </div>${timerBar()}<p class="text-center text-xs text-slate-400 mt-1">${Q.stages[X.stage + 1] && Q.stages[X.stage + 1].reveal > st.reveal ? "🌫 " + t("fogHint") : ""}</p></div></div>`;
-  tick();
-}
-function renderStudentPlay(app) {
-  const g = myG(), cur = X.order[X.turn], mineTurn = g === cur;
-  app.innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-sm">${g >= 0 ? Q.groupIcons[g] + " " + esc(gName(g)) + " · " + X.scores[g] + " " + t("points") : "👀 " + t("watching")}</span></div>
-  <div class="text-center font-bold py-2 rounded-xl ${mineTurn ? "bg-emerald-500 text-black" : "glass"}">${mineTurn ? t("yourTurn") : t("turn") + ": " + esc(gName(cur))}</div>
-  ${timerBar()}
-  ${X.modal ? `<div class="glass p-4 mt-3"><div class="text-center text-xs tracking-widest text-teal-200 mb-1">${t("quiz")} ${X.modal.i + 1}</div>${modalBody(false)}</div>` : ""}
-  <div class="mt-3">${sidebar()}</div></div>`;
-  tick();
-}
-function renderEnd(app, T) {
-  const final = X.screen === "final", rk = [...X.active].sort((a, b) => X.scores[b] - X.scores[a]), max = X.scores[rk[0]];
-  const win = rk.filter(g => X.scores[g] === max);
-  app.innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="text-center py-6 max-w-md mx-auto">
-    <h2 class="text-3xl font-black neon">${final ? "🏆 " + t("final") : t("stageEnd") + " " + (X.stage + 1)}</h2>
-    ${final ? `<p class="text-2xl mt-3 font-bold pop">${win.length > 1 ? t("tie") + " " : t("winner") + ": "}${win.map(g => esc(gName(g))).join(" & ")} 🎉</p>` : ""}
-    <div class="mt-4 space-y-2"><h3 class="font-bold">${t("scoreboard")}</h3>${rk.map((g, r) => `<div class="flex justify-between px-4 py-2 rounded-lg font-bold text-black" style="background:${Q.groupColors[g]}"><span>${r + 1}. ${Q.groupIcons[g]} ${esc(gName(g))}</span><span>${X.scores[g]}</span></div>`).join("")}</div>
-    ${T ? `<button onclick="${final ? "toLobby()" : "nextStage()"}" class="mt-6 px-8 py-3 rounded-full bg-teal-400 text-black text-lg font-bold">${final ? t("again") : t("next")}</button>` : ""}</div>`;
-  if (final) { clearInterval(timer); confetti(); }
-}
-function confetti() {
-  for (let i = 0; i < 50; i++) {
-    const c = document.createElement("div"); c.className = "conf"; c.textContent = ["🎉", "✨", "🦠", "🏆"][i % 4];
-    c.style.left = Math.random() * 100 + "vw"; c.style.animationDuration = 2 + Math.random() * 3 + "s";
-    document.body.appendChild(c); setTimeout(() => c.remove(), 5500);
-  }
-}
-(async function boot() { mazeBg(); await Store.init(); listen(); render(); })();
+};
 
-</script>
-</body>
-</html>
+/* ----- map ----- */
+function mapHtml(canClaim, small) {
+  const g = role === "student" ? myGroup() : -1, busy = claimsOf().some(([, d]) => d.g === g), used = new Set(G.plan.map(p => p.pos));
+  const line = G.plan.map(p => p.pos).sort((a, b) => a - b).map(i => Q.nodes[i].x + "," + Q.nodes[i].y).join(" ");
+  const fog = Q.nodes.map((n, i) => used.has(i) ? "" : `<div class="node fog flex items-center justify-center" style="left:${n.x}%;top:${n.y}%">?</div>`).join("");
+  const nodes = G.plan.map((p, k) => {
+    const n = Q.nodes[p.pos], d = nodeDoc(k), dc = Q.difficulties[diffFor(p.pts)].color; let s = d ? d.st : "open", label = p.pts, style = `left:${n.x}%;top:${n.y}%;--c:${dc}`;
+    if (s === "claimed") { label = Q.groupIcons[d.g]; style += `;border-color:${Q.groupColors[d.g]};background:${Q.groupColors[d.g]}55`; }
+    if (s === "done") { label = `✓<span class="block text-[9px] leading-none">${Q.groupIcons[d.by]}</span>`; style += `;background:${Q.groupColors[d.by]};border-color:${Q.groupColors[d.by]}`; }
+    if (s === "thrown") { const open = stealOpen(d); label = open ? "🥷" : "↩"; if (open) s += " steal"; }
+    if (s === "lost") label = "✗";
+    const ok = canClaim && !busy && running() && (s === "open" || (s === "thrown" && !(d.tried || []).includes(g)));
+    return `<button ${ok ? `onclick="claim(${k})"` : ""} class="node ${s} flex flex-col items-center justify-center" style="${style}${s === "open" && !ok ? ";animation:none" : ""}">${label}</button>`;
+  }).join("");
+  return `<div class="relative glass overflow-hidden ${small ? "sm" : ""}" style="aspect-ratio:${small ? "5/4" : "16/9"}"><svg class="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${line}" fill="none" stroke="#14b8a6" stroke-opacity=".5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="stroke-width:10px;filter:drop-shadow(0 0 6px #2dd4bf)"/></svg>${fog}${nodes}
+    <div id="cdo" class="absolute inset-0 bg-black/70 flex items-center justify-center"><div class="text-center"><div class="text-xl font-bold">${t("getReady")}</div><div id="cd" class="text-7xl font-black neon">3</div></div></div></div>`;
+}
+const timerHtml = () => `<div class="glass px-4 py-2 mt-3"><div class="flex justify-between text-sm font-bold"><span>${tr(Q.stages[G.stage].label)} · ${G.plan.length} ${t("nodes")}</span><span>⏱ <b id="ttxt"></b></span></div><div class="h-3 rounded bg-slate-800 overflow-hidden mt-1"><div id="tbar" class="h-full" style="width:100%"></div></div></div>`;
+const lbList = () => { const s = stats(); return [...G.active].map(g => ({ g, ...s[g] })).sort((a, b) => b.score - a.score || a.g - b.g); };
+
+/* ----- teacher monitoring dashboard ----- */
+B["play-teacher"] = () => {
+  $("#app").innerHTML = `<div class="flex justify-between items-center mb-2">${langBtn()}<span class="text-xs text-teal-300">${t("host")} · ${t("room")} <b class="text-base">${room}</b></span><div class="text-xs flex gap-3"><button onclick="endStage()" class="underline">${t("endNow")}</button><button onclick="toLobby()" class="underline">${t("toLobby")}</button></div></div>
+  <div class="grid lg:grid-cols-[320px_1fr] gap-3"><div class="space-y-3"><div class="glass p-3"><div class="text-center font-bold text-teal-200 mb-2">${t("lb")}</div><div id="lb"></div></div>
+    <div class="glass p-3" id="stats"></div><div class="glass p-3"><div class="text-xs font-bold text-teal-200 mb-1">${t("feed")}</div><div id="feed" class="text-xs space-y-1"></div></div></div>
+    <div><div id="map"></div><div id="tl">${timerHtml()}</div></div></div>`;
+  LB.mount($("#lb"), 54);
+};
+function refreshT() {
+  const l = lbList(), tot = stats().tot, busy = new Set(claimsOf().map(([, d]) => d.g));
+  LB.update(l, -1, busy); $("#map").innerHTML = mapHtml(false, false);
+  const fin = G.plan.filter((p, k) => { const d = nodeDoc(k); return d && (d.st === "done" || d.st === "lost"); }).length;
+  $("#stats").innerHTML = `<div class="grid grid-cols-3 text-center"><div><div class="text-2xl font-black">${fin}/${G.plan.length}</div><div class="text-[11px]">${t("answered")}</div></div><div><div class="text-2xl font-black">${tot.done + tot.tried ? Math.round(tot.done / (tot.done + tot.tried) * 100) : 0}%</div><div class="text-[11px]">${t("accuracy")}</div></div><div><div class="text-2xl font-black">🥷${tot.stl}</div><div class="text-[11px]">${t("stealsT")}</div></div></div>`;
+  const ev = Object.entries(Nd).filter(([id, d]) => id.startsWith(G.run + "_") && d.last).sort((a, b) => b[1].last.rt - a[1].last.rt).slice(0, 6);
+  $("#feed").innerHTML = ev.map(([id, d]) => { const [, s, k] = id.split("_"), L = d.last, w = `${Q.groupIcons[L.g]} ${esc(gName(L.g))}`, at = `S${+s + 1}·${t("n")} ${+k + 1}`;
+    return `<div class="${L.ok ? "text-emerald-300" : "text-red-300"}">${w} ${L.ok ? (L.steal ? t("s_st") : t("s_ok")) : L.timeout ? t("s_to") : t("s_bad")} ${at} ${L.ok ? "+" + L.pts : L.pen ? "−" + L.pen : ""}</div>`; }).join("") || "—";
+  tick();
+}
+
+/* ----- student phone view ----- */
+B["play-student"] = () => {
+  $("#app").innerHTML = `<div class="max-w-md mx-auto"><div class="flex justify-between items-center mb-2">${langBtn()}<span id="hd" class="text-sm font-bold"></span></div><div id="tl">${timerHtml()}</div>
+  <div id="pane" class="mt-3"></div><div class="glass p-3 mt-3"><div class="text-center font-bold text-teal-200 mb-2">${t("lb")}</div><div id="lb"></div></div></div>`;
+  LB.mount($("#lb"), 44);
+};
+function optionsHtml(k, interactive, res, last) {
+  const p = G.plan[k], q = qById(p.qid);
+  return `<div class="space-y-2 qopts">${p.ord.map((oi, i) => {
+    let cls = "bg-slate-800/80 border-teal-400/40" + (interactive ? " hover:bg-teal-900 cursor-pointer" : "");
+    if (res) cls = oi === q.a ? "bg-emerald-700 border-emerald-300" : (last && i === last.opt ? "bg-red-700 border-red-300" : "bg-slate-900 opacity-50 border-transparent");
+    return `<div ${interactive ? `onclick="ans(${k},${i})"` : ""} class="flex items-center gap-3 px-3 py-3 rounded-xl border ${cls}"><b class="w-7 h-7 shrink-0 rounded-md bg-teal-400/20 flex items-center justify-center">${"ABCD"[i]}</b>${q.o[lang][oi]}</div>`;
+  }).join("")}</div>`;
+}
+function paneNow() {   // what should this phone show right now?
+  const g = myGroup(), clk = isClicker(g), plan = G.plan || [];
+  const own = claimsOf().find(([, d]) => d.g === g);
+  if (own) return { key: "q" + nkey(own[0]), kind: "q", k: own[0], clk };
+  const st = plan.map((p, k) => [k, nodeDoc(k)]).find(([, d]) => d && stealOpen(d) && g >= 0 && !(d.tried || []).includes(g) && !(d.last && d.last.g === g));
+  if (st) return { key: "s" + nkey(st[0]) + st[1].thrownAt, kind: "s", k: st[0], clk };
+  const res = plan.map((p, k) => [k, nodeDoc(k)]).filter(([, d]) => d && d.last && d.last.g === g && now() - d.last.rt < 3500).sort((a, b) => b[1].last.rt - a[1].last.rt)[0];
+  if (res) return { key: "r" + nkey(res[0]) + res[1].last.rt, kind: "r", k: res[0], clk };
+  return { key: "m", kind: "m", clk };
+}
+function paneHtml(p) {
+  const g = myGroup(), pl = G.plan, scan = `<div class="qscan"><i></i><div class="text-xs neon tracking-widest">${t("ld_tips")[p.k % 5]}</div></div>`;
+  if (p.kind === "q") return `<div class="glass p-4 qwrap">${scan}<div class="flex justify-between text-sm mb-2"><span class="neon font-bold">${t("quiz")} ${p.k + 1}</span><span class="text-amber-300 font-bold">${pl[p.k].pts} ${t("points")} · ⏳ <b id="atxt"></b></span></div>
+    <h3 class="text-lg font-bold mb-3">${tr(qById(pl[p.k].qid).q)}</h3>${optionsHtml(p.k, p.clk)}<p class="text-center text-xs mt-3 text-teal-200">${p.clk ? t("youClicker") : t("discuss")}</p></div>`;
+  if (p.kind === "s") { const d = nodeDoc(p.k); return `<div class="glass p-4 qwrap" style="border-color:#fb923c">${scan}<div class="text-center font-black text-2xl text-orange-400 glitch">🥷 ${t("stealBanner")}</div><div class="text-center text-xs mb-2">${Q.groupIcons[d.last.g]} ${esc(gName(d.last.g))} ${t("stealSub")} · +${C.stealBonus} ${t("stealPts")} · ⏳ <b id="stxt"></b></div>
+    <h3 class="text-lg font-bold mb-3">${tr(qById(pl[p.k].qid).q)}</h3>${optionsHtml(p.k, p.clk)}</div>`; }
+  if (p.kind === "r") { const d = nodeDoc(p.k), L = d.last;
+    return `<div class="glass p-4"><h3 class="text-base font-bold mb-3">${tr(qById(pl[p.k].qid).q)}</h3>${optionsHtml(p.k, false, true, L)}<div class="text-center mt-3"><div class="pop text-3xl font-black ${L.ok ? "text-emerald-300" : "text-red-400"}">${L.ok ? (L.steal ? "🥷 " + t("stealWin") : "✅ " + t("correct")) : "❌ " + (L.timeout ? t("timeout") : t("wrong"))}</div>
+      ${L.ok ? `<div class="pop text-2xl font-extrabold">+${L.pts} ${t("points")}</div>` : `<div class="pop text-xl font-bold text-red-300">${L.pen ? "−" + L.pen + " " + t("points") : ""}</div>${L.steal ? "" : `<div class="text-sm text-amber-300 mt-1">🥷 ${t("passing")}</div>`}`}</div></div>`; }
+  return `<div class="text-center text-sm my-2 ${p.clk ? "text-amber-300 font-bold" : "text-teal-100"}">${g < 0 ? "👀 " + t("watching") : p.clk ? t("tapNode") : t("youMember")}</div><div id="map">${mapHtml(p.clk, true)}</div>`;
+}
+function paneSwitch(force) {
+  const p = paneNow(), el = $("#pane"); if (!el) return;
+  if (p.key !== paneKey) { paneKey = p.key; el.innerHTML = paneHtml(p); }
+  else if (p.kind === "m" && force) $("#map").innerHTML = mapHtml(p.clk, true);
+}
+function refreshS() {
+  const g = myGroup(), s = stats(); paneSwitch(true);
+  $("#hd").textContent = g >= 0 ? `${Q.groupIcons[g]} ${gName(g)} · ${s[g].score} ${t("points")}${isClicker(g) ? " 👆" : ""}` : "👀 " + t("watching");
+  LB.update(lbList(), g, new Set(claimsOf().map(([, d]) => d.g))); tick();
+}
+
+/* ----- stage / final podium ----- */
+B.end = () => {
+  const final = G.screen === "final", l = lbList(), top = l.filter(x => x.score === l[0].score), order = [1, 0, 2].filter(i => l[i]), hs = { 0: 190, 1: 140, 2: 100 };
+  $("#app").innerHTML = `<div class="flex justify-end">${langBtn()}</div><div class="text-center py-4 max-w-md mx-auto">
+    <h2 class="text-3xl font-black neon">${final ? `<span class="trophy inline-block">🏆</span> ` + t("final") : t("stageEnd") + " " + (G.stage + 1)}</h2>
+    ${final ? `<p class="text-xl mt-2 font-bold pop">${top.length > 1 ? t("tie") + " " : t("winner") + ": "}${top.map(x => esc(gName(x.g))).join(" & ")} 🎉</p>` : ""}
+    <div class="pod mt-6">${order.map(i => `<div style="height:${hs[i]}px;background:${Q.groupColors[l[i].g]};color:#000;animation-delay:${(2 - i) * .25}s"><div class="text-2xl">${i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</div><div class="text-xs px-1 truncate">${Q.groupIcons[l[i].g]} ${esc(gName(l[i].g))}</div><div class="text-lg">${l[i].score}</div></div>`).join("")}</div>
+    <div class="glass p-3 mt-4"><div id="lb"></div></div>
+    ${final ? (role === "teacher" ? `<button onclick="toLobby()" class="mt-5 px-8 py-3 rounded-full bg-teal-400 text-black text-lg font-bold">${t("again")}</button>` : "")
+      : `<div class="mt-4 text-teal-200">${t("nextIn")} <b id="nx" class="text-2xl"></b>s ${role === "teacher" ? `<button onclick="nextStage()" class="ml-3 px-3 py-1 rounded-full bg-teal-400 text-black text-sm font-bold">${t("skip")}</button>` : ""}</div>`}</div>`;
+  LB.mount($("#lb"), 44); LB.update(l, role === "student" ? myGroup() : -1); confetti(final ? 60 : 18);
+};
+function confetti(n) { for (let i = 0; i < n; i++) { const c = document.createElement("div"); c.className = "conf"; c.textContent = ["🎉", "✨", "🦠", "🏆"][i % 4]; c.style.left = Math.random() * 100 + "vw"; c.style.animationDuration = 2 + Math.random() * 3 + "s"; document.body.appendChild(c); setTimeout(() => c.remove(), 5500); } }
+
+/* ----- timer loop (all roles) ----- */
+function startTick() { if (!timer) timer = setInterval(tick, 250); }
+function tick() {
+  const n = now();
+  if (G.screen === "stageEnd") { const r = Math.max(0, Math.ceil((G.nextAt - n) / 1000)), e = $("#nx"); if (e) e.textContent = r; if (role === "teacher" && n >= G.nextAt) nextStage(); return; }
+  if (G.screen !== "play") return;
+  const rem = Math.max(0, Math.ceil((G.endAt - n) / 1000)), total = (G.endAt - G.startAt) / 1000, cdo = $("#cdo");
+  if (cdo) { const w = G.startAt - n; cdo.style.display = w > 0 ? "flex" : "none"; if (w > 0) $("#cd").textContent = w > 3000 ? "⏳" : Math.ceil(w / 1000); }
+  const bar = $("#tbar"), txt = $("#ttxt");
+  if (bar) { bar.style.width = Math.max(0, (n < G.startAt ? total : (G.endAt - n) / 1000) / total * 100) + "%"; bar.style.background = rem < 15 ? "#ef4444" : rem < 30 ? "#f59e0b" : "#14b8a6"; }
+  if (txt) txt.textContent = `${Math.floor(rem / 60)}:${String(rem % 60).padStart(2, "0")}`;
+  if (role === "student") {
+    paneSwitch(false); const g = myGroup(), own = claimsOf().find(([, d]) => d.g === g), a = $("#atxt"), s = $("#stxt"), sd = Object.values(Nd).find(d => stealOpen(d));
+    if (a && own) a.textContent = Math.max(0, Math.ceil(C.answerSeconds - (n - own[1].ts) / 1000)) + "s";
+    if (s && sd) s.textContent = Math.max(0, Math.ceil(C.stealSeconds - (n - sd.thrownAt) / 1000)) + "s";
+    if (view === "play-student" && cdo && cdo.style.display === "none" && !$("#pane").dataset.go) { $("#pane").dataset.go = 1; refreshS(); }
+  } else { releaseStale(); if (n >= G.endAt) endStage(); }
+}
+(async function boot() {
+  Loader.show(t("ld_boot"), null, 1800); mazeBg(); await Store.init(); go();
+})();
+function mazeBg() {   // random maze behind everything (recursive backtracker)
+  const W = 36, H = 20, vis = [...Array(H)].map(() => Array(W).fill(0)), Rr = [...Array(H)].map(() => Array(W).fill(1)), Bb = [...Array(H)].map(() => Array(W).fill(1)), st = [[0, 0]]; vis[0][0] = 1;
+  while (st.length) {
+    const [x, y] = st[st.length - 1], nb = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => [x + dx, y + dy, dx, dy]).filter(([a, b]) => a >= 0 && b >= 0 && a < W && b < H && !vis[b][a]);
+    if (!nb.length) { st.pop(); continue; }
+    const [a, b, dx, dy] = nb[Math.random() * nb.length | 0]; vis[b][a] = 1; if (dx === 1) Rr[y][x] = 0; if (dx === -1) Rr[b][a] = 0; if (dy === 1) Bb[y][x] = 0; if (dy === -1) Bb[b][a] = 0; st.push([a, b]);
+  }
+  let d = ""; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { if (Rr[y][x]) d += `M${x + 1} ${y}v1`; if (Bb[y][x]) d += `M${x} ${y + 1}h1`; }
+  $("#bg").innerHTML = `<svg class="w-full h-full" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice"><path d="${d}" stroke="#2dd4bf" stroke-opacity=".17" stroke-width=".07" fill="none"/></svg>`;
+}
+</script></body></html>
