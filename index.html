@@ -64,6 +64,14 @@ const Q = questionBank, $ = s => document.querySelector(s);
 const C = Object.assign({ stealBonus: 5, wrongPenalty: 5, stealSeconds: 15, interludeSeconds: 8, loaderMs: 1500 }, Q.settings || {});
 C.answerSeconds = Q.answerSeconds || 25; C.countdownSeconds = Q.countdownSeconds || 4;
 
+/* ---------- Backward compatibility: accept older questions.js formats and fill in missing fields ---------- */
+Q.groups = Q.groups || 6; Q.teacherPin = Q.teacherPin || "1234";
+Q.groupIcons = Q.groupIcons || ["🦠", "🧬", "🔬", "🌋", "🧂", "🔥"];
+Q.groupColors = Q.groupColors || ["#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#fb923c"];
+Q.stages = Q.stages.map((s, i) => ({ ...s, count: s.count || s.reveal || 4, seconds: s.seconds || Q.timerSeconds || 60, label: s.label || { en: `STAGE ${i + 1}`, id: `TAHAP ${i + 1}` } }));   // old: reveal/timerSeconds
+const stagePts = (st, k, pos) => st.points && st.points.length ? st.points[k % st.points.length] : Q.difficulties[Q.nodes[pos].d].points;   // no `points`? use each node's own difficulty
+addEventListener("error", e => { const d = document.createElement("div"); d.className = "fixed bottom-2 left-2 right-2 z-[200] bg-red-900 text-xs p-2 rounded"; d.textContent = "⚠ " + e.message; document.body.appendChild(d); setTimeout(() => d.remove(), 9000); });
+
 /* ---------- UI texts ---------- */
 const UI = {
   en: { loginT:"Teacher / Host", loginS:"Student", pin:"Teacher PIN", roomOpt:"Room code (blank = new room)", roomIn:"Room code", wrongPin:"Wrong PIN", noRoom:"Room not found", yourName:"Your name", enter:"Enter",
@@ -196,7 +204,7 @@ function pickQuestion(d) {
 }
 function startStage() {
   const st = Q.stages[G.stage], pos = st.pick || [...Array(st.count).keys()];
-  G.plan = pos.map((p, k) => { const pts = st.points[k % st.points.length], q = pickQuestion(diffFor(pts)); return { pos: p, pts, qid: q.id, ord: Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3] }; });
+  G.plan = pos.map((p, k) => { const pts = stagePts(st, k, p), q = pickQuestion(diffFor(pts)); return { pos: p, pts, qid: q.id, ord: Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3] }; });
   G.screen = "play"; G.startAt = now() + (C.countdownSeconds + 2) * 1000; G.endAt = G.startAt + st.seconds * 1000; G.nextAt = 0;
   publish(); startTick(); go();
 }

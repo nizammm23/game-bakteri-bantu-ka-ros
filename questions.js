@@ -1,4 +1,3 @@
-
 const questionBank = {
   topic: {
     title: { en: "Archaea Quest", id: "Archaea Quest" },
@@ -12,21 +11,22 @@ const questionBank = {
   shuffleOptions: true,
   difficulties: {
     1: { points: 20, color: "#22c55e", label: { en: "Easy", id: "Mudah" } },
-    2: { points: 30, color: "#3b82f6", label: { en: "Easy-Medium", id: "Mudah-Sedang" } },
-    3: { points: 40, color: "#eab308", label: { en: "Medium", id: "Sedang" } },
-    4: { points: 50, color: "#a855f7", label: { en: "Medium-Hard", id: "Sedang-Sulit" } },
-    5: { points: 60, color: "#ef4444", label: { en: "Hard", id: "Sulit" } },
-    6: { points: 80, color: "#52525b", label: { en: "Very Hard", id: "Sangat Sulit" } }
+    2: { points: 25, color: "#3b82f6", label: { en: "Easy-Medium", id: "Mudah-Sedang" } },
+    3: { points: 30, color: "#eab308", label: { en: "Medium", id: "Sedang" } },
+    4: { points: 35, color: "#a855f7", label: { en: "Medium-Hard", id: "Sedang-Sulit" } },
+    5: { points: 40, color: "#ef4444", label: { en: "Hard", id: "Sulit" } },
+    6: { points: 50, color: "#52525b", label: { en: "Very Hard", id: "Sangat Sulit" } }
   },
-  // Stage 1: 4 points | 2: 8 | 3-4: 12 (stable) | 5-7: 20 points + Bomb mode
   stages: [
-    { reveal: 4,  label: { en: "PHASE 1 - SMALL MAZE", id: "FASE 1 - LABIRIN KECIL" } },
-    { reveal: 8,  label: { en: "PHASE 2 - WIDE MAZE (8 POINTS)", id: "FASE 2 - LABIRIN LUAS (8 TITIK)" } },
-    { reveal: 12, label: { en: "PHASE 3 - EXTENDED MAZE (12 POINTS)", id: "FASE 3 - LABIRIN EKSTREM (12 TITIK)" } },
-    { reveal: 12, label: { en: "PHASE 3 - STAGE 2", id: "FASE 3 - TAHAP 2" } },
-    { reveal: 20, bomb: true, label: { en: "BOMB POINTS 1/3", id: "TITIK BOM 1/3" } },
-    { reveal: 20, bomb: true, label: { en: "BOMB POINTS 2/3", id: "TITIK BOM 2/3" } },
-    { reveal: 20, bomb: true, label: { en: "BOMB POINTS 3/3", id: "TITIK BOM 3/3" } }],
+    { count: 4,  seconds: 50, points: [20],         label: { en: "STAGE 1 - SMALL MAZE",    id: "TAHAP 1 - LABIRIN KECIL" } },
+    { count: 8,  seconds: 60, points: [20, 25, 30], label: { en: "STAGE 2 - WIDE MAZE",     id: "TAHAP 2 - LABIRIN LUAS" } },
+    { count: 12, seconds: 71, points: [25, 30, 35], label: { en: "STAGE 3 - EXTENDED MAZE", id: "TAHAP 3 - LABIRIN EKSTREM" } },
+    { count: 12, seconds: 71, points: [25, 30, 35], label: { en: "STAGE 4",                 id: "TAHAP 4" } },
+    { count: 12, seconds: 71, points: [25, 30, 35], label: { en: "STAGE 5",                 id: "TAHAP 5" } },
+    { count: 20, seconds: 80, points: [30, 35, 40], label: { en: "STAGE 6 - FULL MAZE",     id: "TAHAP 6 - LABIRIN PENUH" } },
+    { count: 5,  seconds: 60, points: [50], pick: [2, 6, 12, 15, 19], label: { en: "STAGE 7 - FINAL DUEL", id: "TAHAP 7 - DUEL FINAL" } },
+    { count: 5,  seconds: 60, points: [50], pick: [1, 7, 11, 16, 18], label: { en: "STAGE 8 - FINAL DUEL", id: "TAHAP 8 - DUEL FINAL" } }
+  ],
   // Serpentine maze path: nodes are connected in this order
   nodes: [
     {x:10,y:14,d:1},{x:30,y:14,d:1},{x:50,y:14,d:2},{x:70,y:14,d:2},{x:90,y:14,d:3},
@@ -97,13 +97,9 @@ const questionBank = {
   ]
 };
 
-
 /* =====================================================================
- * FIREBASE CONFIG (needed so teacher + student devices can sync)
- * Paste your Firebase web-app config here (see README.md, step 1).
- * Leave databaseURL empty to run in demo mode (same-browser tabs only).
+ * FIREBASE CONFIG 
  * ===================================================================== */
-
 const firebaseConfig = {
   apiKey: "AIzaSyAwJb-jzpppT76-gytDky3Lc03znLqBp_g",
   authDomain: "archaea-quest.firebaseapp.com",
