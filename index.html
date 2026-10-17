@@ -197,18 +197,21 @@ function startGame() {
   Object.keys(Nd).forEach(id => Store.put(R(`nodes/${id}`), null)); LB.last = {};
   S.used = new Set(); G = { screen: "play", stage: 0, run: Date.now().toString(36), active }; startStage();
 }
-function pickQuestion(d) {
-  const pool = Q.questions.filter(q => q.d === d); let fresh = pool.filter(q => !S.used.has(q.id));
-  if (!fresh.length) { pool.forEach(q => S.used.delete(q.id)); fresh = pool; }
-  const q = fresh[Math.random() * fresh.length | 0]; S.used.add(q.id); return q;
-}
 
+/* =====================================================================
+ * LOGIKA STAGE & PEMILIHAN SOAL ACAK SESUAI DIFFICULTY (NO DUPLICATE)
+ * ===================================================================== */
 
-/* ----- FUNGSI PEMILIHAN SOAL ACAK SESUAI DIFFICULTY STAGE ----- */
+// 1. Pelacak ID soal agar tidak keulang
+let usedQids = new Set();
+
 function pickQuestionForStage(stageIdx, k) {
-  const stg = Q.stages[stageIdx] || Q.stages[0];
-  
-  // Target difficulty sesuai stage
+  // Jika di Stage 1 (Awal), reset daftar soal yang sudah terpakai
+  if (stageIdx === 0 && k === 0) {
+    usedQids.clear();
+  }
+
+  // Tentukan target difficulty sesuai stage
   let targetDiffs = [1];
   if (stageIdx === 0) targetDiffs = [1];                       // Stage 1: Easy
   else if (stageIdx === 1) targetDiffs = [1, 2];                // Stage 2: Easy-Medium
@@ -216,15 +219,29 @@ function pickQuestionForStage(stageIdx, k) {
   else if (stageIdx === 4 || stageIdx === 5) targetDiffs = [3, 4, 5]; // Stage 5-6: Hard
   else targetDiffs = [4, 5, 6];                                 // Stage 7-8: Duel Final
 
+  // Filter pool berdasarkan difficulty
   let pool = Q.questions.filter(q => targetDiffs.includes(q.d));
-  if (!pool.length) pool = Q.questions;
+  
+  // Cari soal di pool yang BELUM pernah dipakai
+  let unusedPool = pool.filter(q => !usedQids.has(q.id));
 
-  // Randomize index
-  const randomIndex = Math.floor(Math.abs(Math.sin(stageIdx * 99 + k * 13 + Date.now()) * 10000)) % pool.length;
-  return pool[randomIndex];
+  // Jika pool target habis, cari dari seluruh bank soal yang belum dipakai
+  if (!unusedPool.length) {
+    unusedPool = Q.questions.filter(q => !usedQids.has(q.id));
+  }
+
+  // Jika semua 50 soal sudah pernah dipakai, fallback gunakan pool stage
+  if (!unusedPool.length) {
+    unusedPool = pool.length ? pool : Q.questions;
+  }
+
+  // Acak & ambil 1 soal
+  const q = unusedPool[Math.floor(Math.random() * unusedPool.length)];
+  usedQids.add(q.id); // Catat ID soal agar tidak muncul lagi
+  return q;
 }
 
-/* ----- FUNGSI STAGE LENGKAP (START, END, NEXT, CHECK) ----- */
+/* ----- FUNGSI KONTROL STAGE ----- */
 function startStage() {
   const st = Q.stages[G.stage], pos = st.pick || [...Array(st.count || st.reveal || 4).keys()];
   
@@ -269,10 +286,6 @@ function checkEnd() {
   })) endStage(); 
 }
 
-
-function endStage() { if (G.screen !== "play") return; G.screen = G.stage >= Q.stages.length - 1 ? "final" : "stageEnd"; G.nextAt = now() + C.interludeSeconds * 1000; publish(); go(); }
-function nextStage() { G.stage++; startStage(); }
-function checkEnd() { if (role === "teacher" && G.screen === "play" && G.plan && G.plan.every((p, k) => { const d = nodeDoc(k); return d && (d.st === "done" || d.st === "lost"); })) endStage(); }
 
 /* ---------- Player actions (atomic transactions on the node document) ---------- */
 function claim(k) {
