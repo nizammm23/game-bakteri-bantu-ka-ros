@@ -202,15 +202,52 @@ function pickQuestion(d) {
   if (!fresh.length) { pool.forEach(q => S.used.delete(q.id)); fresh = pool; }
   const q = fresh[Math.random() * fresh.length | 0]; S.used.add(q.id); return q;
 }
+/* ----- PEMILIHAN SOAL ACAK SESUAI DIFFICULTY STAGE ----- */
+function pickQuestionForStage(stageIdx, k) {
+  const stg = Q.stages[stageIdx] || Q.stages[0];
+  
+  // 1. Tentukan target difficulty berdasarkan stage
+  let targetDiffs = [1];
+  if (stageIdx === 0) targetDiffs = [1];                       // Stage 1: Easy (Diff 1)
+  else if (stageIdx === 1) targetDiffs = [1, 2];                // Stage 2: Easy-Medium (Diff 1 & 2)
+  else if (stageIdx === 2 || stageIdx === 3) targetDiffs = [2, 3, 4]; // Stage 3-4: Medium
+  else if (stageIdx === 4 || stageIdx === 5) targetDiffs = [3, 4, 5]; // Stage 5-6: Hard
+  else targetDiffs = [4, 5, 6];                                 // Stage 7-8: Very Hard / Duel Final
+
+  // 2. Filter bank soal berdasarkan difficulty target
+  let pool = Q.questions.filter(q => targetDiffs.includes(q.d));
+  if (!pool.length) pool = Q.questions; // Fallback jika kosong
+
+  // 3. Acak (Shuffle) berdasarkan seed gabungan Stage & Node k agar tidak berulang
+  const randomIndex = Math.floor(Math.abs(Math.sin(stageIdx * 99 + k * 13 + Date.now()) * 10000)) % pool.length;
+  return pool[randomIndex];
+}
+
+/* ----- START STAGE DENGAN SOAL BENVARIASI ----- */
 function startStage() {
   const st = Q.stages[G.stage], pos = st.pick || [...Array(st.count).keys()];
-  G.plan = pos.map((p, k) => { const pts = stagePts(st, k, p), q = pickQuestion(diffFor(pts)); return { pos: p, pts, qid: q.id, ord: Q.shuffleOptions ? shuffle([0, 1, 2, 3]) : [0, 1, 2, 3] }; });
-  G.screen = "play"; G.startAt = now() + (C.countdownSeconds + 2) * 1000; G.endAt = G.startAt + st.seconds * 1000; G.nextAt = 0;
-  publish(); startTick(); go();
+  
+  // Buat plan soal baru yang diacak berdasarkan difficulty stage
+  G.plan = pos.map((p, k) => { 
+    const pts = stagePts ? stagePts(st, k, p) : 20; 
+    const q = pickQuestionForStage(G.stage, k); 
+    return { 
+      pos: p, 
+      pts: Q.difficulties[q.d] ? Q.difficulties[q.d].points : pts, 
+      qid: q.id, 
+      ord: Q.shuffleOptions ? [0, 1, 2, 3].sort(() => Math.random() - 0.5) : [0, 1, 2, 3] 
+    }; 
+  });
+
+  G.screen = "play"; 
+  G.startAt = now() + (C.countdownSeconds + 2) * 1000; 
+  G.endAt = G.startAt + st.seconds * 1000; 
+  G.nextAt = 0;
+  
+  publish(); 
+  startTick(); 
+  go();
 }
-function endStage() { if (G.screen !== "play") return; G.screen = G.stage >= Q.stages.length - 1 ? "final" : "stageEnd"; G.nextAt = now() + C.interludeSeconds * 1000; publish(); go(); }
-function nextStage() { G.stage++; startStage(); }
-function checkEnd() { if (role === "teacher" && G.screen === "play" && G.plan && G.plan.every((p, k) => { const d = nodeDoc(k); return d && (d.st === "done" || d.st === "lost"); })) endStage(); }
 
 /* ---------- Player actions (atomic transactions on the node document) ---------- */
 function claim(k) {
